@@ -1,0 +1,9 @@
+{
+  "dataset": "/home/yd/Q2_RAS_Project/data/dpf_dataset.pt",
+  "synthetic": true,
+  "state_dimension": 2,
+  "note": "Synthetic eight-figure trajectory with fake 360-D scans. This is a 2D proof-of-concept, not the paper's 6-DoF SAPF or a real robot run.",
+  "rmse_2d": 0.25315776467323303,
+  "prior_rmse_2d": 0.2499302625656128,
+  "trained_weights_loaded": true
+}

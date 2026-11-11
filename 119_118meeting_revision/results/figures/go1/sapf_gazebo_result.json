@@ -1,0 +1,162 @@
+{
+  "experiment": "ROS/Gazebo 6-DoF SAPF",
+  "model_name": "go1_gazebo",
+  "duration": 30.0,
+  "rate": 50.0,
+  "steps": 1500,
+  "particles": 500,
+  "observation_rate_hz": 5.0,
+  "observation_outages_s": [
+    [
+      8.0,
+      12.0
+    ],
+    [
+      18.0,
+      22.0
+    ]
+  ],
+  "used_model_states": true,
+  "semantic_label_source": "external /guide_dog/terrain_label",
+  "semantic_label_names": {
+    "0": "Flat",
+    "1": "Stairs",
+    "2": "Obstacle",
+    "3": "Tactile"
+  },
+  "semantic_label_accuracy": 0.896,
+  "semantic_label_counts": {
+    "Flat": 212,
+    "Stairs": 578,
+    "Obstacle": 404,
+    "Tactile": 306
+  },
+  "ground_truth_label_counts": {
+    "Flat": 260,
+    "Stairs": 600,
+    "Obstacle": 400,
+    "Tactile": 240
+  },
+  "metrics": {
+    "LO": {
+      "axis_rmse": {
+        "x": 0.08758114612548777,
+        "y": 0.15317913391245996,
+        "z": 0.27203264481957257,
+        "roll": 0.06752851843388917,
+        "pitch": 0.06995767645273603,
+        "yaw": 0.06318007607384113
+      },
+      "position_rmse": 0.32424691836678593,
+      "orientation_rmse": 0.11595645436644807,
+      "stairs_z_rmse": 0.41550101571874304,
+      "stairs_position_rmse": 0.48141852428654974,
+      "flat_z_rmse": 0.09078658328013832,
+      "flat_position_rmse": 0.1439360150660786,
+      "final_z_error": 0.7044183378863722
+    },
+    "SPF": {
+      "axis_rmse": {
+        "x": 0.06550370813025884,
+        "y": 0.03658122889896125,
+        "z": 0.23669593914193035,
+        "roll": 0.01619540414049252,
+        "pitch": 0.02575554355672026,
+        "yaw": 0.018121516946174497
+      },
+      "position_rmse": 0.24830201306645241,
+      "orientation_rmse": 0.035412265044846916,
+      "stairs_z_rmse": 0.36592386334855664,
+      "stairs_position_rmse": 0.371191242477695,
+      "flat_z_rmse": 0.06409443682446374,
+      "flat_position_rmse": 0.1044087663624621,
+      "final_z_error": 0.61288474716843
+    },
+    "LPF": {
+      "axis_rmse": {
+        "x": 0.050250387252756254,
+        "y": 0.0338087809478056,
+        "z": 0.09902909699266367,
+        "roll": 0.013958502150066785,
+        "pitch": 0.020501939252936714,
+        "yaw": 0.014865711042907017
+      },
+      "position_rmse": 0.11608142460967241,
+      "orientation_rmse": 0.028916408148588122,
+      "stairs_z_rmse": 0.14252587930027655,
+      "stairs_position_rmse": 0.1567289485617624,
+      "flat_z_rmse": 0.05293567705331299,
+      "flat_position_rmse": 0.07798837319862528,
+      "final_z_error": 0.1452370581690383
+    },
+    "EKF": {
+      "axis_rmse": {
+        "x": 0.05814598681492452,
+        "y": 0.029029792563932875,
+        "z": 0.1371906324120522,
+        "roll": 0.013490424885064158,
+        "pitch": 0.01922131038568947,
+        "yaw": 0.013769648841942154
+      },
+      "position_rmse": 0.1518056463396707,
+      "orientation_rmse": 0.027222299053404196,
+      "stairs_z_rmse": 0.20829892648906873,
+      "stairs_position_rmse": 0.21563657644488002,
+      "flat_z_rmse": 0.04942827313423389,
+      "flat_position_rmse": 0.0860745899424616,
+      "final_z_error": 0.30116950757932415
+    },
+    "SAPF": {
+      "axis_rmse": {
+        "x": 0.05673816977735544,
+        "y": 0.03535474865149078,
+        "z": 0.07978899366970407,
+        "roll": 0.013761042431361241,
+        "pitch": 0.017223674906959304,
+        "yaw": 0.016566678261461572
+      },
+      "position_rmse": 0.10409352368287944,
+      "orientation_rmse": 0.02757673103754555,
+      "stairs_z_rmse": 0.10628980280360767,
+      "stairs_position_rmse": 0.126575016306967,
+      "flat_z_rmse": 0.055486854881917166,
+      "flat_position_rmse": 0.0858969127450127,
+      "final_z_error": 0.08835829935523609
+    },
+    "SAPF-Oracle": {
+      "axis_rmse": {
+        "x": 0.05884045133213573,
+        "y": 0.03389930070714015,
+        "z": 0.06073499179165774,
+        "roll": 0.013592956460017746,
+        "pitch": 0.016518856190716965,
+        "yaw": 0.015252945151171857
+      },
+      "position_rmse": 0.09110488751617711,
+      "orientation_rmse": 0.02627343546166323,
+      "stairs_z_rmse": 0.07562676208929925,
+      "stairs_position_rmse": 0.10162588949224004,
+      "flat_z_rmse": 0.04832143020593366,
+      "flat_position_rmse": 0.0833563831119098,
+      "final_z_error": 0.09366525798613035
+    },
+    "SAPF-Shuffled": {
+      "axis_rmse": {
+        "x": 0.05765349450969713,
+        "y": 0.03130438670506424,
+        "z": 0.1282735557737706,
+        "roll": 0.012687627681297437,
+        "pitch": 0.0166670267251196,
+        "yaw": 0.01604959835215549
+      },
+      "position_rmse": 0.14407635186596904,
+      "orientation_rmse": 0.026388544546840535,
+      "stairs_z_rmse": 0.18950931632473525,
+      "stairs_position_rmse": 0.20038170815617373,
+      "flat_z_rmse": 0.05899989719340224,
+      "flat_position_rmse": 0.08847658429938893,
+      "final_z_error": 0.25232347579244907
+    }
+  },
+  "note": "The locomotion is a kinematic Gazebo animation. Leg odometry and the exteroceptive pose observation are simulated with noise; the particle filters run online and are not linear blends. The exteroceptive pose is available at a reduced rate with two outage windows, so the process model matters between updates."
+}
