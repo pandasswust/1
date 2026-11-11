@@ -1,0 +1,600 @@
+{
+  "data": "data/ahpff_go1_calibration.npz",
+  "model": "data/ahpff_go1_model.joblib",
+  "supervised_model": "data/ahpff_go1_model_supervised.joblib",
+  "model_type": "reliability_weighted_cluster_readout",
+  "samples": 351,
+  "features": 24,
+  "class_counts": {
+    "Flat": 59,
+    "Stairs": 152,
+    "Obstacle": 85,
+    "Tactile": 55
+  },
+  "class_names": {
+    "0": "Flat",
+    "1": "Stairs",
+    "2": "Obstacle",
+    "3": "Tactile"
+  },
+  "feature_names": [
+    "canny_edge_density",
+    "laplacian_variance",
+    "mean_intensity",
+    "std_intensity",
+    "mean_gradient",
+    "std_gradient",
+    "intensity_entropy",
+    "mean_r",
+    "mean_g",
+    "mean_b",
+    "mean_saturation",
+    "yellow_fraction",
+    "red_fraction",
+    "depth_mean",
+    "depth_std",
+    "depth_min",
+    "depth_max",
+    "depth_p25",
+    "depth_p75",
+    "depth_span",
+    "depth_mean_abs_sobel_x",
+    "depth_mean_abs_sobel_y",
+    "depth_mean_gradient",
+    "valid_ratio"
+  ],
+  "vision_feature_names": [
+    "canny_edge_density",
+    "laplacian_variance",
+    "mean_intensity",
+    "std_intensity",
+    "mean_gradient",
+    "std_gradient",
+    "intensity_entropy",
+    "mean_r",
+    "mean_g",
+    "mean_b",
+    "mean_saturation",
+    "yellow_fraction",
+    "red_fraction"
+  ],
+  "depth_feature_names": [
+    "depth_mean",
+    "depth_std",
+    "depth_min",
+    "depth_max",
+    "depth_p25",
+    "depth_p75",
+    "depth_span",
+    "depth_mean_abs_sobel_x",
+    "depth_mean_abs_sobel_y",
+    "depth_mean_gradient",
+    "valid_ratio"
+  ],
+  "n_clusters": 32,
+  "beta": 4.0,
+  "cluster_to_class": [
+    1,
+    3,
+    1,
+    3,
+    1,
+    1,
+    2,
+    2,
+    2,
+    1,
+    1,
+    1,
+    3,
+    2,
+    0,
+    1,
+    1,
+    1,
+    2,
+    2,
+    2,
+    1,
+    1,
+    0,
+    1,
+    1,
+    1,
+    0,
+    3,
+    1,
+    0,
+    1
+  ],
+  "cluster_class_counts": [
+    [
+      0,
+      6,
+      0,
+      0
+    ],
+    [
+      4,
+      0,
+      0,
+      21
+    ],
+    [
+      0,
+      3,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      16
+    ],
+    [
+      0,
+      9,
+      0,
+      0
+    ],
+    [
+      9,
+      16,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      12,
+      0
+    ],
+    [
+      0,
+      0,
+      8,
+      0
+    ],
+    [
+      0,
+      0,
+      20,
+      0
+    ],
+    [
+      0,
+      25,
+      0,
+      0
+    ],
+    [
+      0,
+      7,
+      0,
+      0
+    ],
+    [
+      0,
+      10,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      7
+    ],
+    [
+      5,
+      0,
+      13,
+      0
+    ],
+    [
+      14,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      10,
+      0,
+      0
+    ],
+    [
+      0,
+      10,
+      1,
+      0
+    ],
+    [
+      0,
+      2,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      9,
+      0
+    ],
+    [
+      0,
+      0,
+      12,
+      0
+    ],
+    [
+      0,
+      0,
+      10,
+      0
+    ],
+    [
+      0,
+      6,
+      0,
+      0
+    ],
+    [
+      0,
+      3,
+      0,
+      0
+    ],
+    [
+      13,
+      0,
+      0,
+      2
+    ],
+    [
+      0,
+      10,
+      0,
+      0
+    ],
+    [
+      0,
+      5,
+      0,
+      0
+    ],
+    [
+      0,
+      2,
+      0,
+      0
+    ],
+    [
+      13,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      9
+    ],
+    [
+      0,
+      15,
+      0,
+      0
+    ],
+    [
+      1,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      13,
+      0,
+      0
+    ]
+  ],
+  "blocked_cv_accuracy": 0.7777777777777778,
+  "blocked_cv_accuracy_supervised": 0.8091168091168092,
+  "random_cv_accuracy": 0.9116809116809117,
+  "random_cv_accuracy_supervised": 0.9772079772079773,
+  "blocked_classification_report": {
+    "Flat": {
+      "precision": 0.4126984126984127,
+      "recall": 0.4406779661016949,
+      "f1-score": 0.4262295081967213,
+      "support": 59.0
+    },
+    "Stairs": {
+      "precision": 0.9041095890410958,
+      "recall": 0.868421052631579,
+      "f1-score": 0.8859060402684564,
+      "support": 152.0
+    },
+    "Obstacle": {
+      "precision": 0.8933333333333333,
+      "recall": 0.788235294117647,
+      "f1-score": 0.8374999999999999,
+      "support": 85.0
+    },
+    "Tactile": {
+      "precision": 0.7164179104477612,
+      "recall": 0.8727272727272727,
+      "f1-score": 0.7868852459016392,
+      "support": 55.0
+    },
+    "accuracy": 0.7777777777777778,
+    "macro avg": {
+      "precision": 0.7316398113801507,
+      "recall": 0.7425153963945483,
+      "f1-score": 0.7341301985917043,
+      "support": 351.0
+    },
+    "weighted avg": {
+      "precision": 0.7894876988359348,
+      "recall": 0.7777777777777778,
+      "f1-score": 0.7814001356951625,
+      "support": 351.0
+    }
+  },
+  "blocked_confusion_matrix": [
+    [
+      26,
+      9,
+      5,
+      19
+    ],
+    [
+      17,
+      132,
+      3,
+      0
+    ],
+    [
+      13,
+      5,
+      67,
+      0
+    ],
+    [
+      7,
+      0,
+      0,
+      48
+    ]
+  ],
+  "supervised_blocked_classification_report": {
+    "Flat": {
+      "precision": 0.5189873417721519,
+      "recall": 0.6949152542372882,
+      "f1-score": 0.5942028985507246,
+      "support": 59.0
+    },
+    "Stairs": {
+      "precision": 0.875,
+      "recall": 0.875,
+      "f1-score": 0.875,
+      "support": 152.0
+    },
+    "Obstacle": {
+      "precision": 0.9154929577464789,
+      "recall": 0.7647058823529411,
+      "f1-score": 0.8333333333333333,
+      "support": 85.0
+    },
+    "Tactile": {
+      "precision": 0.9183673469387755,
+      "recall": 0.8181818181818182,
+      "f1-score": 0.8653846153846154,
+      "support": 55.0
+    },
+    "accuracy": 0.8091168091168092,
+    "macro avg": {
+      "precision": 0.8069619116143516,
+      "recall": 0.7882007386930119,
+      "f1-score": 0.7919802118171683,
+      "support": 351.0
+    },
+    "weighted avg": {
+      "precision": 0.8317588565659269,
+      "recall": 0.8091168091168092,
+      "f1-score": 0.8162035845982334,
+      "support": 351.0
+    }
+  },
+  "supervised_blocked_confusion_matrix": [
+    [
+      41,
+      10,
+      4,
+      4
+    ],
+    [
+      17,
+      133,
+      2,
+      0
+    ],
+    [
+      11,
+      9,
+      65,
+      0
+    ],
+    [
+      10,
+      0,
+      0,
+      45
+    ]
+  ],
+  "blocked_folds": [
+    {
+      "fold": 0,
+      "train": 280,
+      "test": 71,
+      "accuracy": 0.5633802816901409,
+      "class_counts_test": {
+        "Flat": 12,
+        "Stairs": 31,
+        "Obstacle": 17,
+        "Tactile": 11
+      }
+    },
+    {
+      "fold": 1,
+      "train": 280,
+      "test": 71,
+      "accuracy": 0.8309859154929577,
+      "class_counts_test": {
+        "Flat": 12,
+        "Stairs": 31,
+        "Obstacle": 17,
+        "Tactile": 11
+      }
+    },
+    {
+      "fold": 2,
+      "train": 281,
+      "test": 70,
+      "accuracy": 0.9142857142857143,
+      "class_counts_test": {
+        "Flat": 12,
+        "Stairs": 30,
+        "Obstacle": 17,
+        "Tactile": 11
+      }
+    },
+    {
+      "fold": 3,
+      "train": 281,
+      "test": 70,
+      "accuracy": 0.9857142857142858,
+      "class_counts_test": {
+        "Flat": 12,
+        "Stairs": 30,
+        "Obstacle": 17,
+        "Tactile": 11
+      }
+    },
+    {
+      "fold": 4,
+      "train": 282,
+      "test": 69,
+      "accuracy": 0.5942028985507246,
+      "class_counts_test": {
+        "Flat": 11,
+        "Stairs": 30,
+        "Obstacle": 17,
+        "Tactile": 11
+      }
+    }
+  ],
+  "random_folds": {
+    "accuracy": 0.9116809116809117,
+    "classification_report": {
+      "Flat": {
+        "precision": 0.8780487804878049,
+        "recall": 0.6101694915254238,
+        "f1-score": 0.7200000000000001,
+        "support": 59.0
+      },
+      "Stairs": {
+        "precision": 0.9320987654320988,
+        "recall": 0.993421052631579,
+        "f1-score": 0.961783439490446,
+        "support": 152.0
+      },
+      "Obstacle": {
+        "precision": 0.9325842696629213,
+        "recall": 0.9764705882352941,
+        "f1-score": 0.9540229885057471,
+        "support": 85.0
+      },
+      "Tactile": {
+        "precision": 0.847457627118644,
+        "recall": 0.9090909090909091,
+        "f1-score": 0.8771929824561402,
+        "support": 55.0
+      },
+      "accuracy": 0.9116809116809117,
+      "macro avg": {
+        "precision": 0.8975473606753672,
+        "recall": 0.8722880103708015,
+        "f1-score": 0.8782498526130833,
+        "support": 351.0
+      },
+      "weighted avg": {
+        "precision": 0.9098681561462486,
+        "recall": 0.9116809116809117,
+        "f1-score": 0.9060075523094702,
+        "support": 351.0
+      }
+    },
+    "confusion_matrix": [
+      [
+        36,
+        9,
+        5,
+        9
+      ],
+      [
+        0,
+        151,
+        1,
+        0
+      ],
+      [
+        0,
+        2,
+        83,
+        0
+      ],
+      [
+        5,
+        0,
+        0,
+        50
+      ]
+    ]
+  },
+  "split_protocol": {
+    "blocked": "each class sorted by timestamp and divided into contiguous blocks; block b assigned to fold b",
+    "random": "stratified random k-fold (optimistic; adjacent frames may cross folds)"
+  },
+  "quality_diagnostics": {
+    "vision": {
+      "quality": 0.6270280161184673,
+      "score": 0.5690103149068905,
+      "exposure": 0.9080419744372332,
+      "contrast": 0.49762254233595027,
+      "sharpness": 0.5086926601819604,
+      "texture": 0.14286379820012535,
+      "entropy": 0.4708325346579637,
+      "edges": 0.19792221710771615
+    },
+    "depth": {
+      "quality": 0.8956056744964481,
+      "score": 0.8807800571402673,
+      "valid_ratio": 1.0,
+      "smoothness": 0.7133440165981246,
+      "spread": 0.9924456475326984,
+      "range": 0.5357720586083132,
+      "relative_spread": 1.8173344207296829
+    }
+  },
+  "roi": [
+    0.15,
+    0.85,
+    0.35,
+    0.98
+  ],
+  "seed": 42
+}

@@ -1,0 +1,22 @@
+level,method,class,recall
+severe,Vision only,Flat,0.529412
+severe,Vision only,Stairs,0.235294
+severe,Vision only,Obstacle,0.470588
+severe,Depth only,Flat,0.882353
+severe,Depth only,Stairs,0.823529
+severe,Depth only,Obstacle,0.000000
+severe,Fixed concat,Flat,1.000000
+severe,Fixed concat,Stairs,0.647059
+severe,Fixed concat,Obstacle,0.000000
+severe,PCA average,Flat,0.882353
+severe,PCA average,Stairs,0.235294
+severe,PCA average,Obstacle,0.529412
+severe,Uniform weighted,Flat,1.000000
+severe,Uniform weighted,Stairs,0.647059
+severe,Uniform weighted,Obstacle,0.000000
+severe,Shuffled reliability,Flat,1.000000
+severe,Shuffled reliability,Stairs,0.705882
+severe,Shuffled reliability,Obstacle,0.000000
+severe,RA-AHPFF (Ours),Flat,0.764706
+severe,RA-AHPFF (Ours),Stairs,0.529412
+severe,RA-AHPFF (Ours),Obstacle,0.411765

@@ -1,0 +1,5 @@
+true_class,Flat,Stairs,Obstacle,Tactile
+Flat,41,10,4,4
+Stairs,17,133,2,0
+Obstacle,11,9,65,0
+Tactile,10,0,0,45

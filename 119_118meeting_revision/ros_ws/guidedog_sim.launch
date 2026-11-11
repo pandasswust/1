@@ -1,0 +1,4 @@
+<launch>
+  <include file="$(find guide_dog_sim)/launch/gazebo_env.launch"/>
+  <include file="$(find guide_dog_sim)/launch/spawn_dog.launch"/>
+</launch>

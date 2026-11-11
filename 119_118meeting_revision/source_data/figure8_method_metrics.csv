@@ -1,0 +1,15 @@
+level,method,accuracy_pct,nmi_pct,ari,silhouette
+clean,Vision only,45.098,7.453,0.028248,0.383579
+clean,Depth only,64.706,33.619,0.219114,0.377950
+clean,Fixed concat,56.863,24.596,0.188762,0.258699
+clean,PCA average,72.549,39.639,0.338512,0.115870
+clean,Uniform weighted,56.863,24.866,0.185926,0.261340
+clean,Shuffled reliability,72.549,40.154,0.334521,0.163663
+clean,RA-AHPFF (Ours),70.588,36.782,0.288386,0.160868
+severe,Vision only,41.176,2.633,-0.018594,0.445971
+severe,Depth only,56.863,24.822,0.170854,0.336479
+severe,Fixed concat,54.902,20.268,0.136822,0.226941
+severe,PCA average,54.902,13.874,0.102462,0.045148
+severe,Uniform weighted,54.902,20.268,0.136822,0.226941
+severe,Shuffled reliability,56.863,22.652,0.177498,0.163263
+severe,RA-AHPFF (Ours),56.863,18.486,0.134130,0.189774

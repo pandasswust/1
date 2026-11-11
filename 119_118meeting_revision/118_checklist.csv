@@ -1,0 +1,8 @@
+item,request,action,artifact,status
+1,需要哪些实验,Added E0-E11 experiment matrix; new qualitative/statistics/runtime/label-efficiency experiments,experiment_protocols/experiment_matrix.md; manuscript Section 4.1; Table experiment_matrix,completed
+2,需要哪些数据集,Documented NYU-51; Go1-351; Go1 closed-loop; standalone SAPF; cross-illumination; raw NYU archive,dataset_cards/; manuscript Table dataset_card,completed
+3,需要哪些数据需要上传,Seven-category upload manifest: descriptors; models; predictions; source CSVs; RGB/depth/mask samples; code/ROS; figures/checksums,upload_manifest.md; checksums.sha256,completed
+4,实验是否够,Added missing qualitative/statistical/runtime/label-efficiency evidence; report severe depth-only tie and pilot-scale boundary,Figure 8; Figure 9; Tables per_class_recall; runtime; wilcoxon; manuscript Section 4.1,completed
+5,单独加聚类实验效果图对比,Added common t-SNE maps; per-class recall heatmap; silhouette-vs-ACC paradox,Figure8_clustering_qualitative.pdf; source_data/figure8_*.csv; Table per_class_recall,completed
+6,视觉颜色结果图/RGB/深度/类别颜色/稠密掩码,Added actual NYU RGB; metric depth; dense masks; overlays; colour-code legend; Go1 nominal/degraded/terrain strips,Figure7_dataset_atlas.pdf; dataset_samples/nyu/ (51 frames x 4 formats); source_data/figure7_*.csv,completed
+7,考虑清楚,Added dataset cards; experiment protocols; honest negative/tie reporting; reproducibility commands and checksums,dataset_cards/; experiment_protocols/; README.md; upload_manifest.md; checksums.sha256,completed

@@ -1,0 +1,8 @@
+dataset,class_index,class_name,hex_color,annotation_id
+NYU Depth V2,0,Flat,#009E73,11
+NYU Depth V2,1,Stairs,#D55E00,215
+NYU Depth V2,2,Obstacle,#0072B2,5
+Go1 street,0,Flat,#009E73,0
+Go1 street,1,Stairs,#D55E00,1
+Go1 street,2,Obstacle,#0072B2,2
+Go1 street,3,Tactile,#E69F00,3
