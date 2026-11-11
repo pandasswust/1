@@ -1,0 +1,39 @@
+# ===== LaTeX build artifacts =====
+*.aux
+*.log
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+*.xdv
+*.out
+*.toc
+*.bbl
+*.blg
+*.nav
+*.snm
+*.vrb
+*.bcf
+*.run.xml
+xelatex*.fls
+
+# ===== Duplicate archives (already extracted in tree) =====
+112.zip
+119_118meeting_revision.zip
+
+# ===== Lock / temp files =====
+.~lock.*
+*.pid
+*.tmp
+*.bak
+
+# ===== Python =====
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.venv/
+venv/
+
+# ===== OS =====
+.DS_Store
+Thumbs.db

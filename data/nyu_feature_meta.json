@@ -1,0 +1,116 @@
+{
+  "source_mat": "/home/yd/Q2_RAS_Project/data/nyu_depth_v2_labeled.mat",
+  "class_names": [
+    "Flat",
+    "Stairs",
+    "Obstacle"
+  ],
+  "nyu_label_ids": {
+    "Flat": 11,
+    "Stairs": 215,
+    "Obstacle": 5
+  },
+  "candidate_frames": {
+    "Flat": 1246,
+    "Stairs": 17,
+    "Obstacle": 654
+  },
+  "selected_frames": {
+    "Flat": [
+      85,
+      147,
+      322,
+      443,
+      449,
+      574,
+      609,
+      626,
+      915,
+      1125,
+      1134,
+      1159,
+      1222,
+      1231,
+      1243,
+      1316,
+      1411
+    ],
+    "Stairs": [
+      94,
+      343,
+      351,
+      352,
+      432,
+      577,
+      600,
+      601,
+      849,
+      853,
+      855,
+      1201,
+      1244,
+      1362,
+      1405,
+      1431,
+      1432
+    ],
+    "Obstacle": [
+      199,
+      277,
+      421,
+      886,
+      988,
+      1011,
+      1060,
+      1083,
+      1110,
+      1211,
+      1262,
+      1284,
+      1293,
+      1346,
+      1361,
+      1398,
+      1445
+    ]
+  },
+  "samples_per_class": {
+    "Flat": 17,
+    "Stairs": 17,
+    "Obstacle": 17
+  },
+  "samples_total": 51,
+  "balanced_per_class": 17,
+  "min_pixels": 100,
+  "max_per_class": 200,
+  "seed": 42,
+  "feature_names_vision": [
+    "canny_edge_density",
+    "laplacian_variance",
+    "mean_intensity",
+    "std_intensity",
+    "mean_gradient",
+    "std_gradient",
+    "intensity_entropy"
+  ],
+  "feature_names_lidar": [
+    "depth_mean",
+    "depth_std",
+    "depth_mean_abs_sobel_x",
+    "depth_mean_abs_sobel_y",
+    "depth_mean_gradient",
+    "depth_std_gradient",
+    "depth_p25",
+    "depth_p75",
+    "depth_span",
+    "depth_gradient_y_x_ratio",
+    "valid_ratio"
+  ],
+  "dim_vision": 7,
+  "dim_lidar": 11,
+  "raw_feature_files": {
+    "vision": "Zv_real_raw.npy",
+    "depth": "Zl_real_raw.npy"
+  },
+  "note": "NYU Depth V2 label ids are 1-based. Stairs are rare (17 annotated frames with at least 100 annotated pixels in the full labeled set); the subset is balanced to the smallest class (17 images per class, 51 images total). Results on this subset are pilot-scale, not a large benchmark."
+}
