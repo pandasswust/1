@@ -1,0 +1,67 @@
+{
+  "experiment": "ROS/Gazebo 6-DoF SAPF",
+  "model_name": "go1_gazebo",
+  "duration": 30.0,
+  "rate": 50.0,
+  "steps": 1500,
+  "particles": 1000,
+  "used_model_states": true,
+  "semantic_label_source": "scripted terrain schedule; replace with AHPFF ROS publisher",
+  "semantic_label_names": {
+    "0": "Flat",
+    "1": "Stairs",
+    "2": "Obstacle",
+    "3": "Tactile"
+  },
+  "semantic_label_counts": {
+    "Flat": 700,
+    "Stairs": 600,
+    "Obstacle": 100,
+    "Tactile": 100
+  },
+  "metrics": {
+    "LO": {
+      "axis_rmse": {
+        "x": 0.11516223941237837,
+        "y": 0.15317913391246002,
+        "z": 0.4389296682874661,
+        "roll": 0.06752851843389053,
+        "pitch": 0.05323035597433721,
+        "yaw": 0.04668639418063015
+      },
+      "position_rmse": 0.47894200291433026,
+      "orientation_rmse": 0.09784268496223988,
+      "stairs_z_rmse": 0.4115011257867207,
+      "final_z_error": 0.7134645671243565
+    },
+    "SPF": {
+      "axis_rmse": {
+        "x": 0.015577837044267177,
+        "y": 0.01622641854482438,
+        "z": 0.14892410064487732,
+        "roll": 0.006535298981090462,
+        "pitch": 0.008999628519441803,
+        "yaw": 0.006614986123815799
+      },
+      "position_rmse": 0.15061325777850743,
+      "orientation_rmse": 0.012940691159225918,
+      "stairs_z_rmse": 0.18602742006150103,
+      "final_z_error": 0.025324989395758446
+    },
+    "SAPF": {
+      "axis_rmse": {
+        "x": 0.013618518140585074,
+        "y": 0.014006896335574313,
+        "z": 0.025985025470212652,
+        "roll": 0.005341864741944981,
+        "pitch": 0.0081357143097588,
+        "yaw": 0.005593124225245346
+      },
+      "position_rmse": 0.032509671330060684,
+      "orientation_rmse": 0.011225346535865849,
+      "stairs_z_rmse": 0.027217013016760615,
+      "final_z_error": 0.0027242259865006835
+    }
+  },
+  "note": "The locomotion is a kinematic Gazebo animation. Leg odometry and the exteroceptive pose observation are simulated with noise; the particle filters run online and are not linear blends."
+}

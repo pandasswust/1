@@ -1,0 +1,38 @@
+{
+  "baseline": {
+    "mean_wv_active": 0.42480194833179435,
+    "mean_wd_active": 0.5751980516682058,
+    "mean_wv_inactive": 0.2545276133429815,
+    "mean_wd_inactive": 0.7454723866570184,
+    "mean_qv_active": 0.7596701418697159,
+    "mean_qd_active": 0.8387477865449738,
+    "samples": 317
+  },
+  "overexposure": {
+    "mean_wv_active": 0.173901621896028,
+    "mean_wd_active": 0.8260983781039719,
+    "mean_wv_inactive": 0.24863091849981558,
+    "mean_wd_inactive": 0.7513690815001847,
+    "mean_qv_active": 0.4424949236809302,
+    "mean_qd_active": 0.8438712593794754,
+    "samples": 336
+  },
+  "blur": {
+    "mean_wv_active": 0.33766655575059473,
+    "mean_wd_active": 0.6623334442494051,
+    "mean_wv_inactive": 0.2825200958539643,
+    "mean_wd_inactive": 0.7174799041460356,
+    "mean_qv_active": 0.6679750686942288,
+    "mean_qd_active": 0.8425849131777228,
+    "samples": 319
+  },
+  "depth_dropout": {
+    "mean_wv_active": 0.7235086857013393,
+    "mean_wd_active": 0.2764913142986609,
+    "mean_wv_inactive": 0.2967772788484261,
+    "mean_wd_inactive": 0.7032227211515739,
+    "mean_qv_active": 0.7610743239661992,
+    "mean_qd_active": 0.5126677939233433,
+    "samples": 288
+  }
+}

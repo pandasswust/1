@@ -1,0 +1,314 @@
+{
+  "runtime": [
+    {
+      "operation": "Health scores (per frame)",
+      "mean_ms": 0.24822891900112154,
+      "std_ms": 0.001690253763154331,
+      "repeats": 5,
+      "calls_per_repeat": 200
+    },
+    {
+      "operation": "Softmax reliability weights (per frame)",
+      "mean_ms": 0.014275022000219906,
+      "std_ms": 0.0010788024309769115,
+      "repeats": 5,
+      "calls_per_repeat": 500
+    },
+    {
+      "operation": "Nearest-centroid readout K=3 (per frame)",
+      "mean_ms": 0.03954471500037471,
+      "std_ms": 0.0025579221736376804,
+      "repeats": 5,
+      "calls_per_repeat": 200
+    },
+    {
+      "operation": "Nearest-centroid readout K=32 (per frame)",
+      "mean_ms": 0.0449997039995651,
+      "std_ms": 0.003948823434039903,
+      "repeats": 5,
+      "calls_per_repeat": 200
+    },
+    {
+      "operation": "ExtraTrees inference (per frame)",
+      "mean_ms": 15.078006077001191,
+      "std_ms": 0.32823645269821394,
+      "repeats": 5,
+      "calls_per_repeat": 200
+    },
+    {
+      "operation": "RW-MVK calibration K=3, n_init=10 (51 frames)",
+      "mean_ms": 27.76272133329864,
+      "std_ms": 0.5799102765216474,
+      "repeats": 3,
+      "calls_per_repeat": 1
+    },
+    {
+      "operation": "RW-MVK calibration K=32, n_init=10 (351 frames)",
+      "mean_ms": 235.92447266643526,
+      "std_ms": 36.040988902447566,
+      "repeats": 3,
+      "calls_per_repeat": 1
+    },
+    {
+      "operation": "ExtraTrees training, 300 trees (351 frames)",
+      "mean_ms": 394.1558219999024,
+      "std_ms": 9.674310999344016,
+      "repeats": 2,
+      "calls_per_repeat": 1
+    }
+  ],
+  "paired_statistics": [
+    {
+      "level": "clean",
+      "baseline": "Vision only",
+      "ours_mean": 0.71078431372549,
+      "baseline_mean": 0.46176470588235297,
+      "mean_gain": 0.24901960784313726,
+      "median_gain": 0.2647058823529412,
+      "wins": 20,
+      "losses": 0,
+      "ties": 0,
+      "wilcoxon_statistic": 0.0,
+      "p_value": 1.9073486328125e-06,
+      "significant_0p05": true
+    },
+    {
+      "level": "clean",
+      "baseline": "Depth only",
+      "ours_mean": 0.71078431372549,
+      "baseline_mean": 0.6499999999999999,
+      "mean_gain": 0.06078431372549018,
+      "median_gain": 0.05882352941176472,
+      "wins": 19,
+      "losses": 0,
+      "ties": 1,
+      "wilcoxon_statistic": 0.0,
+      "p_value": 9.442978221117477e-05,
+      "significant_0p05": true
+    },
+    {
+      "level": "clean",
+      "baseline": "Fixed concat",
+      "ours_mean": 0.71078431372549,
+      "baseline_mean": 0.5656862745098039,
+      "mean_gain": 0.14509803921568626,
+      "median_gain": 0.1568627450980392,
+      "wins": 20,
+      "losses": 0,
+      "ties": 0,
+      "wilcoxon_statistic": 0.0,
+      "p_value": 1.9073486328125e-06,
+      "significant_0p05": true
+    },
+    {
+      "level": "clean",
+      "baseline": "PCA average",
+      "ours_mean": 0.71078431372549,
+      "baseline_mean": 0.6852941176470587,
+      "mean_gain": 0.025490196078431383,
+      "median_gain": 0.019607843137254832,
+      "wins": 12,
+      "losses": 2,
+      "ties": 6,
+      "wilcoxon_statistic": 7.0,
+      "p_value": 0.003915455416639028,
+      "significant_0p05": true
+    },
+    {
+      "level": "clean",
+      "baseline": "Uniform weighted",
+      "ours_mean": 0.71078431372549,
+      "baseline_mean": 0.5666666666666667,
+      "mean_gain": 0.14411764705882352,
+      "median_gain": 0.1470588235294118,
+      "wins": 20,
+      "losses": 0,
+      "ties": 0,
+      "wilcoxon_statistic": 0.0,
+      "p_value": 1.9073486328125e-06,
+      "significant_0p05": true
+    },
+    {
+      "level": "clean",
+      "baseline": "Shuffled reliability",
+      "ours_mean": 0.71078431372549,
+      "baseline_mean": 0.6666666666666666,
+      "mean_gain": 0.04411764705882353,
+      "median_gain": 0.05882352941176472,
+      "wins": 16,
+      "losses": 2,
+      "ties": 2,
+      "wilcoxon_statistic": 12.0,
+      "p_value": 0.0011578497609135746,
+      "significant_0p05": true
+    },
+    {
+      "level": "severe",
+      "baseline": "Vision only",
+      "ours_mean": 0.5999999999999999,
+      "baseline_mean": 0.4245098039215686,
+      "mean_gain": 0.1754901960784314,
+      "median_gain": 0.1764705882352941,
+      "wins": 20,
+      "losses": 0,
+      "ties": 0,
+      "wilcoxon_statistic": 0.0,
+      "p_value": 1.9073486328125e-06,
+      "significant_0p05": true
+    },
+    {
+      "level": "severe",
+      "baseline": "Depth only",
+      "ours_mean": 0.5999999999999999,
+      "baseline_mean": 0.5960784313725489,
+      "mean_gain": 0.003921568627450978,
+      "median_gain": 0.0,
+      "wins": 8,
+      "losses": 7,
+      "ties": 5,
+      "wilcoxon_statistic": 55.5,
+      "p_value": 0.797230339789742,
+      "significant_0p05": false
+    },
+    {
+      "level": "severe",
+      "baseline": "Fixed concat",
+      "ours_mean": 0.5999999999999999,
+      "baseline_mean": 0.5441176470588236,
+      "mean_gain": 0.05588235294117645,
+      "median_gain": 0.049019607843137275,
+      "wins": 16,
+      "losses": 1,
+      "ties": 3,
+      "wilcoxon_statistic": 7.5,
+      "p_value": 0.0010685271758171188,
+      "significant_0p05": true
+    },
+    {
+      "level": "severe",
+      "baseline": "PCA average",
+      "ours_mean": 0.5999999999999999,
+      "baseline_mean": 0.49215686274509796,
+      "mean_gain": 0.10784313725490194,
+      "median_gain": 0.10784313725490194,
+      "wins": 17,
+      "losses": 0,
+      "ties": 3,
+      "wilcoxon_statistic": 0.0,
+      "p_value": 0.00028734688212536007,
+      "significant_0p05": true
+    },
+    {
+      "level": "severe",
+      "baseline": "Uniform weighted",
+      "ours_mean": 0.5999999999999999,
+      "baseline_mean": 0.5421568627450981,
+      "mean_gain": 0.057843137254901936,
+      "median_gain": 0.05882352941176466,
+      "wins": 17,
+      "losses": 1,
+      "ties": 2,
+      "wilcoxon_statistic": 9.0,
+      "p_value": 0.0008428166820442093,
+      "significant_0p05": true
+    },
+    {
+      "level": "severe",
+      "baseline": "Shuffled reliability",
+      "ours_mean": 0.5999999999999999,
+      "baseline_mean": 0.5617647058823529,
+      "mean_gain": 0.038235294117647034,
+      "median_gain": 0.039215686274509776,
+      "wins": 14,
+      "losses": 4,
+      "ties": 2,
+      "wilcoxon_statistic": 27.5,
+      "p_value": 0.011226866164954899,
+      "significant_0p05": true
+    }
+  ],
+  "calibration_curve": [
+    {
+      "fraction": 0.25,
+      "cluster_mean": 0.7768420377336482,
+      "cluster_std": 0.18775999313523298,
+      "cluster_sem": 0.0375519986270466,
+      "supervised_mean": 0.7640136470999912,
+      "supervised_std": 0.21798212156782262,
+      "supervised_sem": 0.04359642431356452,
+      "n_evaluations": 25
+    },
+    {
+      "fraction": 0.4,
+      "cluster_mean": 0.7838944390983582,
+      "cluster_std": 0.16934924061125783,
+      "cluster_sem": 0.033869848122251564,
+      "supervised_mean": 0.7863575656839589,
+      "supervised_std": 0.21294070751954738,
+      "supervised_sem": 0.04258814150390948,
+      "n_evaluations": 25
+    },
+    {
+      "fraction": 0.55,
+      "cluster_mean": 0.7760071151546964,
+      "cluster_std": 0.17896933394768297,
+      "cluster_sem": 0.035793866789536596,
+      "supervised_mean": 0.8051280436240633,
+      "supervised_std": 0.21747087505360688,
+      "supervised_sem": 0.04349417501072138,
+      "n_evaluations": 25
+    },
+    {
+      "fraction": 0.7,
+      "cluster_mean": 0.7799827370017204,
+      "cluster_std": 0.17857727515626576,
+      "cluster_sem": 0.03571545503125315,
+      "supervised_mean": 0.7976990056279708,
+      "supervised_std": 0.22108505280927374,
+      "supervised_sem": 0.044217010561854744,
+      "n_evaluations": 25
+    },
+    {
+      "fraction": 0.85,
+      "cluster_mean": 0.7850867523984487,
+      "cluster_std": 0.16354859186589893,
+      "cluster_sem": 0.032709718373179784,
+      "supervised_mean": 0.7965467004928121,
+      "supervised_std": 0.23004504278561314,
+      "supervised_sem": 0.04600900855712263,
+      "n_evaluations": 25
+    },
+    {
+      "fraction": 1.0,
+      "cluster_mean": 0.7788654244306418,
+      "cluster_std": 0.16723746326855252,
+      "cluster_sem": 0.033447492653710505,
+      "supervised_mean": 0.8022862974951156,
+      "supervised_std": 0.22797598744129868,
+      "supervised_sem": 0.045595197488259735,
+      "n_evaluations": 25
+    }
+  ],
+  "per_seed_seeds": [
+    42,
+    43,
+    44,
+    45,
+    46,
+    47,
+    48,
+    49,
+    50,
+    51,
+    52,
+    53,
+    54,
+    55,
+    56,
+    57,
+    58,
+    59,
+    60,
+    61
+  ]
+}

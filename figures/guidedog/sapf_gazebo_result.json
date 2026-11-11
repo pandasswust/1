@@ -1,0 +1,74 @@
+{
+  "experiment": "ROS/Gazebo 6-DoF SAPF",
+  "model_name": "guide_dog",
+  "duration": 30.0,
+  "rate": 50.0,
+  "steps": 1500,
+  "particles": 500,
+  "used_model_states": true,
+  "semantic_label_source": "external /guide_dog/terrain_label",
+  "semantic_label_names": {
+    "0": "Flat",
+    "1": "Stairs",
+    "2": "Obstacle",
+    "3": "Tactile"
+  },
+  "semantic_label_accuracy": 0.9006666666666666,
+  "semantic_label_counts": {
+    "Flat": 432,
+    "Stairs": 219,
+    "Obstacle": 130,
+    "Tactile": 719
+  },
+  "ground_truth_label_counts": {
+    "Flat": 425,
+    "Stairs": 200,
+    "Obstacle": 150,
+    "Tactile": 725
+  },
+  "metrics": {
+    "LO": {
+      "axis_rmse": {
+        "x": 0.1136018472231976,
+        "y": 0.15317913391245983,
+        "z": 0.15478629057407467,
+        "roll": 0.06752851843389214,
+        "pitch": 0.07331826764827976,
+        "yaw": 0.039246919476096466
+      },
+      "position_rmse": 0.24561763476667534,
+      "orientation_rmse": 0.10712604660485002,
+      "stairs_z_rmse": 0.15516053341432823,
+      "final_z_error": 0.33246456712435446
+    },
+    "SPF": {
+      "axis_rmse": {
+        "x": 0.015919992217680163,
+        "y": 0.014956804639266397,
+        "z": 0.06167178841372075,
+        "roll": 0.006700945754240452,
+        "pitch": 0.007647669276044444,
+        "yaw": 0.006235435967566447
+      },
+      "position_rmse": 0.06542600127911623,
+      "orientation_rmse": 0.011927706446029284,
+      "stairs_z_rmse": 0.08545309937924135,
+      "final_z_error": 0.03622374842227383
+    },
+    "SAPF": {
+      "axis_rmse": {
+        "x": 0.013281634845887711,
+        "y": 0.013832411772054682,
+        "z": 0.018570529831076876,
+        "roll": 0.005047506427945602,
+        "pitch": 0.006818818819024593,
+        "yaw": 0.006771521732169477
+      },
+      "position_rmse": 0.02669460653049772,
+      "orientation_rmse": 0.010854820025964482,
+      "stairs_z_rmse": 0.0307876705583192,
+      "final_z_error": 0.004203891922923697
+    }
+  },
+  "note": "The locomotion is a kinematic Gazebo animation. Leg odometry and the exteroceptive pose observation are simulated with noise; the particle filters run online and are not linear blends."
+}
