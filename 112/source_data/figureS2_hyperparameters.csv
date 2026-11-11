@@ -1,0 +1,10 @@
+parameter,value,accuracy_pct,secondary_metric
+lambda=0,0,54.2,18.7
+lambda=1,1,56.8,20.4
+lambda=2,2,58.6,22.1
+lambda=4,4,60.0,23.2
+lambda=8,8,59.4,22.8
+roc=1,1,61.5,0.54
+roc=2,2,68.9,0.63
+roc=4,4,74.4,0.7
+roc=8,8,77.8,0.734

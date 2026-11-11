@@ -1,0 +1,1394 @@
+\documentclass[11pt, a4paper]{article}
+\usepackage[a4paper, margin=2.2cm]{geometry}
+\usepackage{fontspec}
+\usepackage[english]{babel}
+\babelfont{rm}{Noto Sans}
+\usepackage{microtype}
+
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{amsthm}
+\usepackage{bm}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage[table]{xcolor}
+\usepackage{hyperref}
+
+\graphicspath{{./}{ge1031/}{figs/ge1031/}{figs/}{../figures/pdf/}{figures/pdf/}}
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue!60!black,
+    citecolor=blue!60!black,
+    urlcolor=blue!60!black
+}
+
+\newtheorem{proposition}{Proposition}
+\newtheorem{remark}{Remark}
+\setlength{\emergencystretch}{5em}
+\tolerance=2000
+\hbadness=3000
+
+\title{\textbf{Reliability-Aware Multi-View Terrain Clustering and Semantic-Adaptive State Estimation for Robotic Guide Dogs under Asymmetric Sensor Degradation}}
+
+\author{
+    \textbf{Dong Yan}, \textbf{Yufeng Xiao}\thanks{Corresponding author. E-mail address: \texttt{yufeng.xiao@swust.edu.cn} (Y. Xiao).}\;,\; \textbf{Zhenyu Ren}, \textbf{Yaolong Zhao} \\[4pt]
+    \small Special Environment Robotics Laboratory, School of Information and Control Engineering, \\
+    \small Southwest University of Science and Technology, Mianyang 621010, China
+}
+
+\date{}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+\noindent
+Autonomous robotic guide dogs operating in unstructured urban environments must continuously recognize navigable terrain semantics while maintaining resilient 6-DoF state estimation under asymmetric visual and depth sensor degradation. Existing sample-level or self-weighted multi-view clustering (MVC) algorithms predominantly infer modality weights from latent reconstruction losses or post-hoc cluster separation metrics (such as silhouette coefficients), which introduces a mathematical circularity between cluster assignment and feature weighting and conflates intrinsic terrain complexity with physical sensor failure. Furthermore, static process noise covariances in downstream state estimators struggle to balance tight planar tracking with rapid vertical adaptation during stair traversal. To address these challenges, we propose a tightly coupled framework integrating \textbf{Reliability-Aware Adaptive Heterogeneous Physical Feature Fusion (RA-AHPFF)} and a \textbf{Semantic-Adaptive Particle Filter (SAPF)} governed by the causal chain: $\text{Sensor Degradation} \to \text{Reliability Estimation} \to \text{Adaptive Clustering} \to \text{Terrain Semantic Recognition} \to \text{State Estimation}$. First, explicitly decoupling sensor reliability from terrain geometric complexity ($\text{Sensor Reliability} \neq \text{Terrain Complexity}$), we formulate a circularity-free, per-sample sensor-health functional based on observable photometric and geometric quality priors (exposure symmetry, contrast adequacy, Laplacian sharpness, valid depth completeness, and scale-invariant depth smoothness). These bounded health scores drive temperature-scaled softmax modality weights within a \textbf{Per-Sample Reliability-Weighted Multi-View $K$-Means (RW-MVK)} objective, whose finite-step monotonic convergence and exponential attenuation of unilateral sensor corruption are formally established. Second, unsupervised clusters are anchored to physical terrain classes via lightweight majority-vote calibration, enabling real-time nearest-centroid terrain readout at test time without discriminative retraining. Third, the online semantic stream dynamically gates the kinematic process noise covariance of the SAPF back end, and we prove that this selective gating strictly reduces accumulated state uncertainty and Shannon differential entropy compared to a globally inflated covariance baseline during exteroceptive measurement outages. Extensive evaluations on a verified NYU Depth V2 benchmark subset and a 351-sample ROS/Gazebo quadrupedal street deployment demonstrate that RA-AHPFF achieves $71.1\%$ clean clustering accuracy and maintains $60.0\%$ accuracy under severe multi-modal corruption, outperforming fixed concatenation, PCA averaging, and shuffled-reliability controls. In closed-loop 6-DoF tracking with 5\,Hz intermittent pose updates and two 4\,s outages, the coupled pipeline achieves $90.1\pm1.0\%$ online semantic accuracy ($77.6\pm1.6\%$ under simultaneous visual-depth degradation) and reduces 3D pose RMSE from $0.1711$\,m (standard PF) to $0.0877$\,m, matching the stair-tracking accuracy of a globally inflated covariance filter while reducing flat-ground process uncertainty volume by $97.4\%$. To make every claim auditable, we further release a dataset atlas with RGB, metric-depth, dense-annotation and class-colour panels, a stand-alone qualitative clustering comparison, paired non-parametric tests over 20 seeds, CPU latency measurements, and a calibration-label-efficiency curve, all linked to the uploaded source data and code.
+
+\vspace{6pt}
+\noindent
+\textbf{Keywords:} Reliability-aware multi-view clustering; Physical sensor health; RGB-D terrain perception; Asymmetric sensor degradation; Cluster-to-terrain calibration; Semantic-adaptive particle filter; Robotic guide dog
+\end{abstract}
+
+\hrule
+\vspace{12pt}
+
+%% ==========================================
+%% 1. Introduction
+%% ==========================================
+\section{Introduction}
+\label{sec:intro}
+Autonomous robotic guide dogs have emerged as a promising robotic mobility solution to assist blind and visually impaired (BVI) individuals across complex indoor and outdoor environments, including sidewalks, tactile paving, dynamic obstacles, and staircases \cite{hong2022development, kim2023transforming, cai2024navigating, li2026budd}. Recent milestones in legged and wheeled-legged guide robots have significantly advanced human-robot interaction, wayfinding formalization, harness-hand compliance, and quiet locomotion control \cite{kim2023transforming, cai2024navigating, chen2025bionic, yu2026human, akhdan2024guiding}. However, unlike wheeled vehicles operating on structured roadways, a quadrupedal guide robot \cite{bledt2018cheetah, hwang2023system} must simultaneously interpret fine-grained micro-topologies \cite{chuang2018deep, hwang2026guidenav, bui2026naviformer} and maintain high-precision 6-DoF pose estimation in the presence of gait-induced oscillations, foot slip, and environmental disturbances \cite{miki2022learning, nistico2025muse}. Relying on a single exteroceptive sensing modality in such scenarios is inherently fragile \cite{chen2022multimodal}: vision-only navigation systems \cite{chuang2018deep, hwang2026guidenav} are highly vulnerable to sudden overexposure, motion blur, and ambient illumination shifts, whereas depth cameras and 3D LiDARs suffer from invalid pixel dropouts, multipath reflections, and range sparsity on inclined or reflective surfaces.
+
+While RGB-D multi-modal perception offers strong cross-modal complementarity \cite{sun2024bmfnet, wang2026guided, wu2024transformer, tang2025cascading}, deploying existing multi-view learning and state estimation pipelines on size-, weight-, and power-constrained (SWaP) quadrupedal platforms faces three fundamental methodological bottlenecks:
+\begin{enumerate}
+    \item \textbf{Conflation of Sensor Reliability with Terrain Complexity and Circular Weighting:} Naive feature concatenation or uniform weighting allows a severely corrupted sensor stream to contaminate the joint representation, causing cross-modal negative transfer. Recently, extensive research in multi-view clustering (MVC) has explored view-level self-weighting \cite{zhu2020self, yan2020adaptive, nie2020multiview, shi2025deep}, view-wise versus cluster-wise weighting \cite{hu2022view}, sample-level adaptive fusion \cite{houfar2023automatically, yang2025deep, he2026adaptive}, and incomplete-view recovery \cite{yang2022robust, li2022refining, liu2024low}. However, these methods infer sample or view weights from internal cluster validity indices (such as silhouette coefficients), latent reconstruction residuals, or within-cluster feature variance. In robotic terrain perception, this creates a fatal ambiguity: \emph{high feature variance or large reconstruction residual may stem from genuine geometric complexity (e.g., a steep staircase) rather than sensor degradation, whereas a completely overexposed white image exhibits near-zero variance and artificially high cluster compactness}. Consequently, residual- or silhouette-driven weighting suffers from a mathematical circularity and fails to isolate physical sensor failure:
+    \begin{equation}
+        \text{Sensor Reliability} \neq \text{Terrain Complexity}.
+        \label{eq:inequality}
+    \end{equation}
+    Furthermore, fusing heterogeneous views by directly summing Principal Component Analysis (PCA) coordinates across distinct sensor spaces conflates incompatible principal axes and destroys geometric invariance.
+    \item \textbf{Disconnect Between Offline Multi-View Clustering and Online Assistive Readout:} Most robust and deep MVC frameworks \cite{xia2014robust, wang2022adversarial, chen2025multi, yang2025deep, he2026adaptive} are designed for offline batch optimization and evaluated via post-hoc Hungarian matching against ground-truth labels \cite{chao2021survey, chowdhury2025deep}. Conversely, supervised multimodal segmentation networks for assistive navigation such as NaviFormer \cite{bui2026naviformer} and CAENet \cite{tang2025cascading} require dense pixel-level annotations and GPU inference. For CPU-only onboard guide dog operation, an unsupervised cluster partition must be deterministically mapped to actionable physical terrain classes at frame rate without discriminative retraining.
+    \item \textbf{The Accuracy--Uncertainty Dilemma in Kinematic State Estimation:} Probabilistic state estimators—such as the Extended Kalman Filter (EKF) or Standard Particle Filter (SPF) \cite{thrun2005probabilistic}—conventionally employ a fixed process noise covariance matrix $\mathbf{Q}_{\text{base}}$ tuned for nominal flat-ground walking. When the quadruped transitions onto a staircase, rapid elevation changes violate planar motion assumptions, causing severe vertical ($z$-axis) lag and particle deprivation. Conversely, permanently inflating the process noise covariance to the maximum across all terrain modes—a strong baseline we term the Large-Covariance Particle Filter (LPF)—recovers stair tracking but permanently inflates posterior uncertainty by more than an order of magnitude during nominal flat-ground cruising.
+\end{enumerate}
+
+To systematically resolve these bottlenecks, this paper formulates a tightly coupled, computationally lightweight framework bridging \textbf{Reliability-Aware Adaptive Heterogeneous Physical Feature Fusion (RA-AHPFF)} at the perception front end with a \textbf{Semantic-Adaptive Particle Filter (SAPF)} at the state estimation back end. Rather than claiming the first use of adaptive weights in general MVC \cite{hu2022view, yang2025deep, he2026adaptive}, we establish a physically grounded causal chain tailored for quadrupedal guide robots under asymmetric sensor degradation:
+\begin{equation}
+    \begin{aligned}
+        \text{Degradation} \rightarrow \text{Health Estimation} \rightarrow \text{Adaptive Clustering} \\
+        \rightarrow \text{Terrain Readout} \rightarrow \text{SAPF Estimation}.
+    \end{aligned}
+    \label{eq:causal_chain}
+\end{equation}
+Specifically, RA-AHPFF evaluates intrinsic, per-sample sensor health directly from observable photometric and geometric regularities prior to clustering. These bounded health scores drive temperature-scaled softmax modality weights within a \textbf{Per-Sample Reliability-Weighted Multi-View $K$-Means (RW-MVK)} optimization objective. Through an over-clustered majority-vote calibration step, online RGB-D frames are mapped at 10\,Hz to discrete terrain semantics, which selectively gate the 50\,Hz directional process noise covariance of the 6-DoF SAPF during intermittent exteroceptive outages.
+
+The principal contributions of this work are summarized as follows:
+\begin{itemize}
+    \item \textbf{Physical Sensor-Health-Driven Per-Sample RGB-D Clustering (RW-MVK):} Strictly distinguishing sensor degradation from terrain complexity, we formulate an interpretable per-sample sensor-health functional for visual and depth streams that operates prior to clustering without circular silhouette or reconstruction feedback. We integrate these softmax reliability weights into a per-sample RW-MVK objective in an orthogonal weighted-concatenation space and formally prove its finite-step monotonic convergence (\textbf{Proposition~\ref{prop:convergence}}) and exponential attenuation of unilateral sensor corruption (\textbf{Proposition~\ref{prop:robustness}}).
+    \item \textbf{Sample-Efficient Cluster-to-Terrain Calibration and CPU-Only Online Readout:} We bridge unsupervised multi-view clustering and real-time assistive navigation via an over-clustered majority-vote calibration protocol. A compact in-scene calibration set is used solely to assign physical terrain names to unsupervised cluster prototypes, enabling millisecond-level nearest-centroid semantic readout at 10\,Hz on a CPU while retaining a supervised ExtraTrees ensemble strictly as an offline discriminative upper bound.
+    \item \textbf{Downstream SAPF with Provable Selective Covariance Gating:} We couple the online cluster readout to a 6-DoF SAPF operating under realistic 5\,Hz exteroceptive pose updates with two 4\,s blackout windows. We formally prove (\textbf{Proposition~\ref{prop:entropy}}) and empirically verify across seven filtering baselines (including SPF, LPF, EKF, Oracle, and Shuffled-Label controls) that semantic covariance gating resolves the accuracy--uncertainty dilemma by matching LPF tracking accuracy on stairs while reducing flat-ground process uncertainty trace by $97.4\%$.
+    \item \textbf{Rigorous Empirical Validation and Boundary Characterization:} Across a verified NYU Depth V2 benchmark subset and a 351-sample ROS/Gazebo Go1 urban street deployment, we conduct temporally blocked cross-validation, targeted modality degradation tests, continuous sensitivity sweeps, hyperparameter ablations, and zero-shot cross-illumination stress tests, transparently establishing both the operational resilience and domain-shift boundaries of the system.
+    \item \textbf{Open Data Audit and Reproducibility Package:} We provide a colour-coded dataset atlas (RGB, metric depth, dense masks, class colour codes), a stand-alone qualitative clustering comparison that exposes per-class failure modes hidden by aggregate accuracy, paired Wilcoxon tests, CPU latency, label-efficiency scaling, an experiment matrix, dataset cards, and an upload manifest with checksums, so that the complete evidence chain can be reproduced without proprietary data.
+\end{itemize}
+
+The remainder of this paper is organized as follows. Section~\ref{sec:related_work} reviews related literature across five thematic domains and contrasts our approach with state-of-the-art methods. Section~\ref{sec:methodology} presents the mathematical formulation, algorithms, and theoretical proofs of RA-AHPFF and SAPF. Section~\ref{sec:experiments} reports comprehensive benchmark, ablation, and closed-loop tracking experiments, followed by conclusions in Section~\ref{sec:conclusion}.
+
+%% ==========================================
+%% 2. Related Work
+%% ==========================================
+\section{Related Work}
+\label{sec:related_work}
+
+\subsection{Guide Robots and Assistive Navigation Systems}
+\label{subsec:rw_guide}
+Sensor-driven assistive technologies for BVI individuals have evolved from wearable aids, smart white canes, and infrastructure-cooperative beacons \cite{patel2024review, wang2025design, wang2026design, ye2016co, zhong2020virtual, lu2021assistive} to autonomous mobile guide robots. Hong et al. \cite{hong2022development} systematically reviewed the key technological pillars of guide dog robots—spanning localization, traffic sign recognition, human-robot interaction (HRI), and locomotion mechanisms—highlighting that reliable terrain perception in unstructured environments remains a critical bottleneck. Early trail-following guide dog systems such as Chuang et al. \cite{chuang2018deep} trained deep convolutional networks across virtual and real pedestrian environments, demonstrating that illumination shifts and background texture variations severely challenge visual perception.
+
+More recently, legged and hybrid locomotion platforms \cite{bledt2018cheetah} have demonstrated compelling real-world guiding capabilities. Kim et al. \cite{kim2023transforming} formalized wayfinding, physical interaction modeling, and safety mechanisms on an AlienGo quadruped across 100\,m guiding trials. Cai et al. \cite{cai2024navigating} developed the RDog quadrupedal guiding system integrating mapping, obstacle avoidance, force feedback, and voice interaction across diverse user studies, while Li et al. (BUDD-e) \cite{li2026budd} validated autonomous hospital guidance with visually impaired volunteers. To handle complex 3D topologies such as staircases, Chen et al. \cite{chen2025bionic} designed a bionic wheeled-legged foldable guide robot tailored for stair climbing, and Yu et al. \cite{yu2025human, yu2026human} introduced quiet, low-jerk locomotion controllers on quadrupeds to preserve the blind user's acoustic situational awareness across stairs and uneven ground. Complementary studies have addressed harness-hand tractor-trailer interaction \cite{akhdan2024guiding}, force-compliance MPC \cite{fan2024force, fan2025force}, edge-computing harnesses (iDog) \cite{chen2024idog}, rigid handle planners \cite{hwang2022system, hwang2023system}, and user-informed vision-only teach-and-repeat navigation (GuideNav) \cite{hwang2026guidenav}. Furthermore, Lu et al. \cite{lu2021assistive} and Bui et al. (NaviFormer) \cite{bui2026naviformer} demonstrated the importance of semantic scene feedback for safe assistive navigation. While these works establish strong mechanical, interactive, and segmentation foundations, they largely assume nominal sensor operation or rely on supervised GPU models; they do not couple per-sample physical sensor degradation estimation with unsupervised terrain clustering and downstream 6-DoF state estimation.
+
+\subsection{RGB-D Feature Fusion and Scene Parsing}
+\label{subsec:rw_rgbd}
+Combining photometric RGB appearance with 3D depth geometry is essential for distinguishing terrains that share similar surface colors but differ in elevation (e.g., flat sidewalks vs.\ staircases). Early perceptual grouping work by Richtsfeld et al. \cite{richtsfeld2014learning} and joint spatial-depth pooling by Pan et al. \cite{pan2016feature} demonstrated that surface pre-clustering and geometric organization substantially improve RGB-D representation over appearance alone. In recent deep multimodal architectures, Sun et al. \cite{sun2024bmfnet} proposed a bifurcated multi-modal fusion network (BMFNet) to capture hierarchical cross-modal complementarity, while Xu et al. (CCFNet) \cite{xu2023ccfnet} and Li et al. \cite{li2024progressive} introduced cross-complementary calibration and progressive cross-level fusion to mitigate cross-modal discrepancy. For dense indoor and assistive scene parsing, Wu et al. \cite{wu2024transformer} developed Transformer fusion with semantic-aware positional encoding, Tang et al. (CAENet) \cite{tang2025cascading} designed cascading attention enhancement to suppress depth noise on NYU Depth V2, Wang et al. \cite{wang2026guided} formulated a guided hierarchical interaction network using depth gradients, and Bui et al. \cite{bui2026naviformer} proposed NaviFormer specifically for assistive navigation segmentation.
+
+However, these supervised pixel-level segmentation networks require large annotated training sets and GPU acceleration, and their learned cross-modal attention weights are implicitly conditioned on clean training distributions. In contrast, our work focuses on lightweight region-level RGB-D descriptor fusion driven by explicit physical health priors on a CPU.
+
+\subsection{Multi-View Clustering and Progressive Feature Learning}
+\label{subsec:rw_mvc}
+Multi-view clustering (MVC) seeks to uncover underlying semantic partitions from heterogeneous feature spaces without label supervision \cite{chao2021survey, wang2024self, chowdhury2025deep, fang2023comprehensive}. Classical robust MVC methods, such as Robust Multi-View Spectral Clustering (RMSC) by Xia et al. \cite{xia2014robust} and graph-regularized NMF \cite{zhang2018multi, xu2021multi}, utilize low-rank and sparse decomposition to filter view-specific noise. To account for varying view quality, Nie et al. \cite{nie2020multiview} proposed multi-view clustering via adaptive distillation, Yan et al. \cite{yan2020adaptive} combined adaptive view weighting with feature selection in subspace clustering, and Zhu et al. \cite{zhu2020self} formulated Self-Weighted Multi-View Fuzzy Clustering (SwMC) to jointly balance view importance and stability. In deep MVC, adversarial fusion networks \cite{wang2022adversarial}, optimal transport alignment \cite{zhang2024learning, lin2023multi}, angular metric navigation clustering \cite{shi2022deep, shi2023deep, shen2023analysis}, and multi-layer comprehensive contrastive learning \cite{chen2025multi} have achieved strong benchmark results. Crucially, Kim et al. (ProFeat) \cite{kim2022profeat} demonstrated that in unsupervised image clustering, intermediate clustering errors propagate back into feature refinement if the weighting or representation update depends on noisy intermediate partitions. This insight directly reinforces our critique of silhouette-weighted fusion: using post-hoc cluster separation to weight modalities creates a self-reinforcing error loop under severe sensor corruption.
+
+\subsection{Sample-Level Reliability-Aware and Incomplete Multi-View Clustering}
+\label{subsec:rw_reliability}
+Recognizing that sensor quality can vary across local clusters or individual instances rather than uniformly across an entire view, several recent studies have investigated fine-grained adaptive weighting and incomplete multi-view learning. Hu et al. \cite{hu2022view} systematically analyzed view-wise versus cluster-wise weighting in multi-view clustering, demonstrating that fine-grained weight allocation improves partition quality when view reliability is non-uniform. Houfar et al. (AW-BMVC) \cite{houfar2023automatically} jointly optimized binary cluster assignments and sample/view weights. Very recently, Shi et al. \cite{shi2025deep} developed deep self-weighted multi-view fuzzy clustering, while Yang and Tan \cite{yang2025deep} proposed a deep MVC framework based on sample-level adaptive fusion and high-confidence clustering structure aggregation. In parallel, to handle missing, unaligned, or corrupted views—which are analogous to camera blackout or depth pixel dropout—researchers have developed incomplete MVC via unified alignment (Yang et al.) \cite{yang2022robust}, graph structure refinement (Li et al.) \cite{li2022refining}, kernelized graph learning (Xia et al.) \cite{xia2023incomplete}, continual and orthogonal NMF \cite{wan2023fast, wan2024fast, liang2022incomplete}, low-rank missing-view recovery (Liu et al.) \cite{liu2024low}, robust matrix completion (Xing et al.) \cite{xing2025incomplete}, robust contrastive learning against dual noisy correspondence (Guo et al. \cite{guo2024robust} and Sun et al. \cite{sun2024robust}), and KAN-based adaptive instance weighting with view recovery (ARLIMVC, He and Du) \cite{he2026adaptive}.
+
+Despite their mathematical sophistication, a fundamental distinction separates our RW-MVK algorithm from Hu et al. \cite{hu2022view}, Shi et al. \cite{shi2025deep}, Yang and Tan \cite{yang2025deep}, and ARLIMVC \cite{he2026adaptive}:
+\begin{enumerate}
+    \item \textbf{Physical Observability vs.\ Latent Residual Learning:} Existing cluster-wise and sample-weighted methods \cite{hu2022view, houfar2023automatically, yang2025deep, he2026adaptive} optimize weights as latent variables driven by clustering distortion or autoencoder reconstruction losses. When a robot encounters a geometrically complex staircase, depth variance increases naturally; distance-driven weighting misinterprets this terrain complexity as view unreliability (Sensor Reliability $\neq$ Terrain Complexity). Conversely, when a camera is severely overexposed, all frames collapse toward a constant white vector with minimal intra-cluster dispersion, deceiving similarity-based schemes into assigning maximal weight to the corrupted visual stream. RA-AHPFF resolves this by computing sample weights from decoupled, physically observable optical and geometric health indicators prior to clustering.
+    \item \textbf{Online Downweighting vs.\ Offline Matrix Recovery:} Low-rank matrix completion and missing-view reconstruction methods \cite{yang2022robust, liu2024low, xing2025incomplete, he2026adaptive} require cubic-complexity matrix inversions or deep network forward passes across a batch of samples. Our softmax health gating operates causally on each incoming RGB-D frame in sub-millisecond CPU time.
+\end{enumerate}
+
+\subsection{RGB-D Terrain Understanding and Semantic-Adaptive State Estimation}
+\label{subsec:rw_estimation}
+In mobile and legged robot state estimation, tightly coupled LiDAR/visual-inertial odometry \cite{lin2018loam, qin2018vins, chen2022multimodal, wang2023deep}, sequential Monte Carlo (particle filtering) \cite{thrun2005probabilistic, jonschkowski2018differentiable, karkus2018particle}, and nonlinear Kalman filtering \cite{cadena2016past} are standard paradigms. During stair climbing or obstacle negotiation, proprioceptive leg odometry suffers from severe vertical ($z$-axis) drift due to foot impact, compliance, and slip \cite{miki2022learning, nistico2025muse}. While semantic perception can inform kinematic models, existing evaluations rarely test whether estimation improvements arise from accurate semantic transition timing or merely from an inflated average noise floor. By introducing both a globally inflated Large-Covariance Particle Filter (LPF) and a temporally permuted Shuffled-Label control, we rigorously prove and verify that selective covariance gating driven by calibrated RW-MVK terrain readout achieves optimal stair tracking while preserving tight flat-ground belief distributions. Table~\ref{tab:sota_comparison} provides a comprehensive methodological comparison between our framework and representative state-of-the-art studies across all reviewed domains.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Comprehensive methodological comparison between the proposed RA-AHPFF + SAPF framework and representative state-of-the-art paradigms across guide robotics, RGB-D fusion, and multi-view clustering.}
+    \label{tab:sota_comparison}
+    \scriptsize
+    \setlength{\tabcolsep}{2.8pt}
+    \renewcommand{\arraystretch}{0.95}
+    \begin{tabularx}{\textwidth}{l l >{\raggedright\arraybackslash}X c c c >{\raggedright\arraybackslash}X}
+        \toprule
+        \textbf{Method / System} & \textbf{Venue} & \textbf{Fusion / Weighting Mechanism} & \textbf{Circularity-Free?} & \textbf{Online Readout?} & \textbf{CPU-Only?} & \textbf{Limitation / Estimator Coupling} \\
+        \midrule
+        RMSC \cite{xia2014robust} & \textit{AAAI} (2014) & Low-rank \& sparse transition decomposition & No & No & Yes & Offline spectral batch; no sample health \\
+        SwMC \cite{zhu2020self} & \textit{TKDD} (2020) & View-level self-weighted fuzzy clustering & No & No & Yes & Uniform weight across all view samples \\
+        Yan et al. \cite{yan2020adaptive} & \textit{PRL} (2020) & Adaptive subspace feature selection & No & No & Yes & Coupled to subspace reconstruction loss \\
+        Hu et al. \cite{hu2022view} & \textit{TIP} (2022) & View-wise vs.\ cluster-wise weighting & No & No & Yes & Coupled to cluster dispersion; offline MVC \\
+        ProFeat \cite{kim2022profeat} & \textit{PRL} (2022) & Progressive unsupervised feature refinement & Partial & No & No & Single-view CNN; offline image clustering \\
+        Yang et al. \cite{yang2022robust} & \textit{TPAMI} (2022) & Contrastive alignment \& view recovery & No & No & No & Requires GPU batching; no online readout \\
+        AW-BMVC \cite{houfar2023automatically} & \textit{PR} (2023) & Joint view/sample binary matrix optimization & No & No & Yes & Offline MVC without semantic calibration \\
+        Liu et al. \cite{liu2024low} & \textit{Neurocomp.} (2024) & Low-rank missing-view reconstruction & No & No & Yes & Cubic matrix complexity; no state coupling \\
+        CAENet \cite{tang2025cascading} & \textit{CVIU} (2025) & Cascading attention RGB-D segmentation & Yes & Soft RT & No & Supervised pixel training; requires GPU \\
+        Shi et al. \cite{shi2025deep} & \textit{KBS} (2025) & Deep self-weighted fuzzy clustering & No & No & No & Latent weights conflate terrain \& noise \\
+        Yang \& Tan \cite{yang2025deep} & \textit{Neurocomp.} (2025) & Sample-level adaptive deep fusion & No & No & No & Requires clean training distribution \\
+        ARLIMVC \cite{he2026adaptive} & \textit{Inf. Sci.} (2026) & Missing-view recovery + KAN weighting & No & No & No & Deep reconstruction; uncalibrated IDs \\
+        NaviFormer \cite{bui2026naviformer} & \textit{CVIU} (2026) & Multimodal transformer segmentation & Yes & Soft RT & No & Supervised model; uncoupled to 6-DoF PF \\
+        RDog / Kim \cite{kim2023transforming, cai2024navigating} & \textit{arXiv/CHI} (24) & Deterministic perception + HRI wayfinding & Yes & Yes & No & No 6-DoF process noise health gating \\
+        Standard PF \cite{thrun2005probabilistic} & Baseline & Static nominal covariance $\mathbf{Q}_{\text{base}}$ & N/A & Yes (50\,Hz) & Yes & Severe $Z$-axis lag on stairs ($0.1711$\,m) \\
+        Large-Cov PF & Baseline & Permanent max covariance inflation $\mathbf{Q}_{\max}$ & N/A & Yes (50\,Hz) & Yes & Permanent $38.5\times$ flat variance inflation \\
+        \midrule
+        \textbf{RA-AHPFF + SAPF} & \textbf{Ours} & \textbf{Observable physical health $(s_v, s_d)$} & \textbf{Yes} & \textbf{Yes (10\,Hz)} & \textbf{Yes} & \textbf{On-demand $\mathbf{Q}(\hat{C}_t)$ gate ($97.4\%$ trace cut)} \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+%% ==========================================
+%% 3. Methodology
+%% ==========================================
+\section{Methodology}
+\label{sec:methodology}
+
+The proposed architecture consists of a reliability-aware RGB-D clustering front end (RA-AHPFF) and a 6-DoF Semantic-Adaptive Particle Filter (SAPF) back end, structured across four synergistic stages (Fig.~\ref{fig:pipeline}) following the causal chain in Eq.~\eqref{eq:causal_chain}. Key mathematical notations and system parameters are summarized in Table~\ref{tab:nomenclature}.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Summary of key mathematical notations and system parameters.}
+    \label{tab:nomenclature}
+    \footnotesize
+    \setlength{\tabcolsep}{4.5pt}
+    \renewcommand{\arraystretch}{1.12}
+    \begin{tabularx}{\textwidth}{l >{\raggedright\arraybackslash}X}
+        \toprule
+        \textbf{Symbol} & \textbf{Physical Meaning and Mathematical Definition} \\
+        \midrule
+        $\mathbf{X}_t^{(v)}, \mathbf{X}_t^{(d)}$ & Raw synchronized RGB image and depth/LiDAR range observation at discrete time step $t$ \\
+        $\mathbf{x}_t^{(v)} \in \mathbb{R}^{d_v}, \mathbf{x}_t^{(d)} \in \mathbb{R}^{d_d}$ & Extracted interpretable visual ($d_v = 7$ on NYU; $d_v = 13$ online) and depth ($d_d = 11$) descriptor vectors \\
+        $\tilde{\mathbf{z}}_t^{(v)}, \tilde{\mathbf{z}}_t^{(d)}$ & Per-view standardized feature vectors normalized strictly using calibration set statistics $(\bm{\mu}_{\text{cal}}^{(m)}, \bm{\sigma}_{\text{cal}}^{(m)})$ \\
+        $e, c, h, g, \epsilon, \kappa \in [0,1]$ & Visual health terms: exposure symmetry, contrast, Laplacian sharpness, gradient strength, entropy, Canny density \\
+        $r, \omega, \rho, \gamma \in [0,1]$ & Depth health terms: valid-pixel ratio, scale-invariant smoothness, relative depth span, working-range coverage \\
+        $s_v, s_d \in [0,1]$ & Composite convex sensor-health scores for the visual and depth modalities \\
+        $q_v, q_d \in [0,1)$ & Logistic-mapped modality reliability scores ($q_m = \sigma(5(s_m - 0.45))$, with hard boundary $q_d = 0$ if $r = 0$) \\
+        $w_v, w_d \in [0,1]$ & Softmax-gated per-sample modality weights ($w_v + w_d = 1$) governed by temperature $\lambda = 4$ \\
+        $\mathbf{z}_t \in \mathbb{R}^{d_v+d_d}$ & Reliability-weighted concatenated embedding $\mathbf{z}_t = [\sqrt{w_v}\tilde{\mathbf{z}}_t^{(v)}, \sqrt{w_d}\tilde{\mathbf{z}}_t^{(d)}]$ in orthogonal product space \\
+        $C, r_{\text{oc}}, K = r_{\text{oc}}C$ & Number of terrain classes ($C \in \{3,4\}$), over-clustering factor ($r_{\text{oc}} \in \{1,3,8\}$), and total clusters $K$ \\
+        $\mathbf{c}_k^{(v)}, \mathbf{c}_k^{(d)}$ & View-specific cluster centroids for cluster $k \in \{1,\dots,K\}$ learned via per-sample RW-MVK \\
+        $m_k \in \{0,\dots,C-1\}$ & Calibrated majority-vote lookup mapping from unsupervised cluster index $k$ to physical terrain class \\
+        $\mathbf{x}_t = [p_x,p_y,p_z,\phi,\theta,\psi]^T$ & 6-DoF robot pose vector (3D position in metres and roll, pitch, yaw Euler angles in radians) \\
+        $\mathbf{Q}(C_t), \mathbf{R}_t$ & Terrain-gated $6\times 6$ diagonal process noise covariance ($50\,\text{Hz}$) and intermittent observation covariance ($5\,\text{Hz}$) \\
+        $\bm{\sigma}_{\text{base}}, \bm{\sigma}_{C_t}$ & Nominal flat-ground process noise standard deviation vector and terrain-specific directional inflation vector \\
+        $\mathrm{ESS}_t, N$ & Effective sample size $\mathrm{ESS}_t = 1/\sum_{i=1}^N (w_t^{[i]})^2$ and particle count ($N = 1000$ standalone; $N = 500$ Gazebo) \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+\begin{figure}[htbp]
+    \centering
+    \IfFileExists{Figure1_method_roadmap.png}{%
+        \includegraphics[width=0.96\textwidth]{Figure1_method_roadmap.png}%
+    }{\IfFileExists{ge1031/Figure1_method_roadmap.png}{%
+        \includegraphics[width=0.96\textwidth]{ge1031/Figure1_method_roadmap.png}%
+    }{\IfFileExists{figs/ge1031/Figure1_method_roadmap.png}{%
+        \includegraphics[width=0.96\textwidth]{figs/ge1031/Figure1_method_roadmap.png}%
+    }{%
+        \framebox{\parbox{0.96\textwidth}{%
+            \vspace{4pt}\centering
+            \textbf{Figure Reference: \texttt{Figure1\_method\_roadmap.png}} \\[4pt]
+            \scriptsize
+            \begin{tabularx}{0.96\textwidth}{>{\raggedright\arraybackslash}X | >{\raggedright\arraybackslash}X | >{\raggedright\arraybackslash}X | >{\raggedright\arraybackslash}X}
+                \textbf{1. Sensing Front End} & \textbf{2. Health Gating} & \textbf{3. RW-MVK + Calibration} & \textbf{4. SAPF Back End} \\
+                \hline
+                Synchronized RGB $\mathbf{X}_t^{(v)}$ \& Depth $\mathbf{X}_t^{(d)}$ ($10\,\text{Hz}$) $\to$ Foreground ROI $(0.15,0.85)\times(0.35,0.98)$ $\to$ Standardized Views $\tilde{\mathbf{z}}_t^{(v)}, \tilde{\mathbf{z}}_t^{(d)}$ &
+                Visual Health $s_v$ \& Depth Health $s_d \to$ Logistic $q_v, q_d \to$ Softmax Gate $w_v, w_d$ ($\lambda=4$) $\to$ Product Space $\mathbf{z}_t$ &
+                Per-Sample RW-MVK ($K=r_{\text{oc}}C$) + Majority Calibration $m_k \to$ Online Nearest Centroid + 5-Frame Filter $\hat{C}_t$ &
+                Semantic Gate $\mathbf{Q}(\hat{C}_t)$ ($50\,\text{Hz}$, $500$ particles) + Intermittent $5\,\text{Hz}$ Pose Updates ($4\,\text{s}$ outages) $\to$ Pose $\hat{\mathbf{x}}_t$
+            \end{tabularx}
+            \vspace{4pt}
+        }}%
+    }}}
+    \caption{Overview of the tightly coupled RA-AHPFF and 6-DoF SAPF architecture (\nolinkurl{Figure1_method_roadmap.png}). Per-sample sensor-health indicators define circularity-free modality weights; clustering is performed in the reliability-weighted product space; the calibrated cluster-to-terrain lookup supplies the online terrain label $\hat{C}_t$ that selectively gates the process covariance $\mathbf{Q}(\hat{C}_t)$ of the particle filter.}
+    \label{fig:pipeline}
+\end{figure}
+
+\subsection{Interpretable RGB-D Physical Descriptors}
+\label{subsec:descriptors}
+Let $\mathbf{X}^{(v)}_t$ and $\mathbf{X}^{(d)}_t$ denote the synchronized RGB and depth observations at time $t$. Rather than relying on opaque deep neural network embeddings that require GPU acceleration and degrade unpredictably under out-of-distribution corruption \cite{sun2024bmfnet, wang2026guided}, we extract compact, physically interpretable morphological, photometric, and geometric descriptors \cite{richtsfeld2014learning, pan2016feature}:
+\begin{itemize}
+    \item \textbf{Visual Descriptor Block ($\mathbf{x}^{(v)}_t \in \mathbb{R}^{d_v}$):} Encodes structural edge density, optical focus sharpness, and illumination distribution via seven core statistics: Canny edge density $d$, Laplacian variance $L$, mean intensity $\mu_I$, intensity standard deviation $\sigma_I$, mean gradient magnitude $\bar{G}$, gradient standard deviation, and 8-bin Shannon intensity entropy $H$. In the online RGB robot deployment, this 7-D structural vector is augmented with six chromaticity descriptors—mean R, G, B channel values, mean HSV saturation, and yellow/red pixel fractions (critical for distinguishing yellow tactile paving)—yielding $d_v = 13$ ($d_v = 7$ in the NYU Depth V2 benchmark).
+    \item \textbf{Depth Descriptor Block ($\mathbf{x}^{(d)}_t \in \mathbb{R}^{d_d}$):} Characterizes 3D surface geometry across $d_d = 11$ dimensions: mean depth $\mu_D$, depth standard deviation, minimum depth $D_{\min}$, maximum depth $D_{\max}$, 25th and 75th depth percentiles, depth span $(D_{\max}-D_{\min})$, mean absolute horizontal and vertical Sobel depth responses, mean depth-gradient magnitude $\bar{G}_d$, and the valid depth pixel ratio $r = N_{\mathrm{valid}}/N_{\mathrm{ROI}}$.
+\end{itemize}
+
+For the NYU Depth V2 benchmark, descriptors are computed inside the annotated object masks to isolate multi-view feature quality from segmentation errors \cite{tang2025cascading}. For the onboard RGB-D robot system, descriptors are extracted within a fixed lower-central region of interest $(0.15,0.85)\times(0.35,0.98)$ in normalized image coordinates, corresponding to the immediate navigable path ahead of the quadruped. The two descriptor blocks are standardized independently into $\tilde{\mathbf{z}}^{(v)}_t$ and $\tilde{\mathbf{z}}^{(d)}_t$ using mean and standard deviation parameters $(\bm{\mu}_{\text{cal}}^{(m)}, \bm{\sigma}_{\text{cal}}^{(m)})$ fitted strictly on the calibration set.
+
+\subsection{Decoupled Per-Sample Sensor Health and Modality Weights}
+\label{subsec:weights}
+The foundational improvement of RA-AHPFF over silhouette-weighted or reconstruction-based fusion \cite{hu2022view, yang2025deep, he2026adaptive} is that modality weights depend solely on observable physical sensor quality prior to clustering, eliminating circular feedback \cite{kim2022profeat} and honoring Eq.~\eqref{eq:inequality}. The visual health score $s_v \in [0,1]$ is defined as the convex linear functional:
+\begin{equation}
+s_v = 0.32 e + 0.24 c + 0.20 h + 0.12 g + 0.06 \epsilon + 0.06 \kappa,
+\label{eq:sv}
+\end{equation}
+where pixel intensities are normalized to $[0,1]$ and spatial gradients are scaled by $255$. The six normalized visual quality components are formulated as:
+\begin{equation}
+\begin{aligned}
+e &= \operatorname{clip}(1-2|\mu_I-0.5|,0,1), \quad &
+c &= \operatorname{clip}(\sigma_I/0.28,0,1), \quad &
+h &= \frac{L}{L+40}, \\
+g &= \operatorname{clip}(\bar{G}/0.20,0,1), \quad &
+\epsilon &= \frac{H}{3}, \quad &
+\kappa &= \operatorname{clip}(d/0.08,0,1),
+\end{aligned}
+\label{eq:visual_terms}
+\end{equation}
+with mean intensity $\mu_I$, intensity standard deviation $\sigma_I$, Laplacian variance $L$, mean gradient magnitude $\bar{G}$, 8-bin intensity entropy $H$ in bits (normalized by its theoretical upper bound $\log_2(8)=3$), and Canny edge density $d$. The visual reliability is obtained via the logistic mapping $q_v=\sigma(5(s_v-0.45))$, where $\sigma(u) = (1+\exp(-u))^{-1}$.
+
+Similarly, the depth health score $s_d \in [0,1]$ is formulated as:
+\begin{equation}
+s_d = 0.50 r + 0.25 \omega + 0.15 \rho + 0.10 \gamma,
+\label{eq:sd}
+\end{equation}
+where $r=N_{\mathrm{valid}}/N_{\mathrm{ROI}}\in[0,1]$ is the valid-pixel completeness ratio, $\bar{D}$ is the guarded mean depth in metres, and $\bar{G}_d$ is the mean depth-gradient magnitude. The individual geometric health terms are defined as:
+\begin{equation}
+\begin{aligned}
+\bar{D} &= \max(\mu_D,10^{-6}), \quad &
+\omega &= \frac{1}{1+6\bar{G}_d/\bar{D}}, \\
+\rho &= \operatorname{clip}\!\left(\frac{D_{\max}-D_{\min}}{1.2\bar{D}},0,1\right), \quad &
+\gamma &= 1-\exp(-\bar{D}/0.6).
+\end{aligned}
+\label{eq:depth_terms}
+\end{equation}
+Normalizing the depth span upper bound by $1.2\bar{D}$ and the surface gradient by $\bar{D}$ ensures relative scale invariance across different camera mounting heights and viewing distances. If no valid depth pixel is present ($r=0$), the depth reliability is set identically to zero ($q_d = 0, w_d = 0$); otherwise, $q_d=\sigma(5(s_d-0.45))$. All coefficients in Eqs.~\eqref{eq:sv}--\eqref{eq:depth_terms} are fixed from physical sensor characteristics and are never fitted to terrain class labels.
+
+Given the per-sample reliabilities $(q_v, q_d)$, the normalized modality weights are computed via temperature-scaled softmax gating:
+\begin{equation}
+w_v = \frac{\exp(\lambda q_v)}{\exp(\lambda q_v)+\exp(\lambda q_d)},
+\qquad
+w_d = 1-w_v,
+\label{eq:weights}
+\end{equation}
+with $\lambda=4$ in all standard experiments. Because $q_v, q_d \in (0,1)$, the weights $(w_v, w_d)$ are strictly positive, bounded in $(0,1)$, and sum to unity. Unlike raw silhouette ratios $s_1/(s_1+s_2)$, Eq.~\eqref{eq:weights} cannot produce negative or singular weights when a modality collapses.
+
+The standardized descriptor blocks are combined by reliability-weighted concatenation in an orthogonal product space:
+\begin{equation}
+\mathbf{z}_t =
+\left[
+\sqrt{w_v}\,\tilde{\mathbf{z}}^{(v)}_t,\;
+\sqrt{w_d}\,\tilde{\mathbf{z}}^{(d)}_t
+\right] \in \mathbb{R}^{d_v + d_d}.
+\label{eq:fusion}
+\end{equation}
+Because the two views occupy orthogonal subspaces in $\mathbb{R}^{d_v + d_d}$, each view retains its physical coordinate system and no PCA score from one sensor space is ever added to a PCA score from the other.
+
+\subsection{Per-Sample Reliability-Weighted Multi-View \texorpdfstring{$K$}{K}-Means (RW-MVK)}
+\label{subsec:rwkmeans}
+For a calibration dataset of $n$ observations $\{\tilde{\mathbf{z}}^{(v)}_i, \tilde{\mathbf{z}}^{(d)}_i\}_{i=1}^n$ with sample-specific weights $\{w_{vi}, w_{di}\}_{i=1}^n$, we minimize the reliability-weighted within-cluster distortion objective:
+\begin{equation}
+J(\{\mathcal{C}_k\}_{k=1}^K, \{\mathbf{c}^{(v)}_k, \mathbf{c}^{(d)}_k\}_{k=1}^K) = \sum_{k=1}^{K}\sum_{i\in \mathcal{C}_k}
+\left(
+w_{vi}\|\tilde{\mathbf{z}}^{(v)}_i-\mathbf{c}^{(v)}_k\|^2
++
+w_{di}\|\tilde{\mathbf{z}}^{(d)}_i-\mathbf{c}^{(d)}_k\|^2
+\right),
+\label{eq:objective}
+\end{equation}
+where $\mathcal{C}_k$ denotes the index set of samples assigned to cluster $k$. Differentiating Eq.~\eqref{eq:objective} with respect to each view centroid yields the sample-weighted mean updates:
+\begin{equation}
+\mathbf{c}^{(v)}_k =
+\frac{\sum_{i\in\mathcal{C}_k} w_{vi}\tilde{\mathbf{z}}^{(v)}_i}
+{\sum_{i\in\mathcal{C}_k} w_{vi}},
+\qquad
+\mathbf{c}^{(d)}_k =
+\frac{\sum_{i\in\mathcal{C}_k} w_{di}\tilde{\mathbf{z}}^{(d)}_i}
+{\sum_{i\in\mathcal{C}_k} w_{di}}.
+\label{eq:centroid}
+\end{equation}
+Because $(w_{vi}, w_{di})$ vary across samples $i$, this formulation defines a \textbf{Per-Sample Reliability-Weighted Multi-View $K$-Means (RW-MVK)} algorithm rather than ordinary $K$-means on a statically weighted feature matrix: samples with corrupted visual frames contribute minimally to $\mathbf{c}^{(v)}_k$ while still contributing strongly to $\mathbf{c}^{(d)}_k$. Initialization uses $K$-means on the weighted concatenation \eqref{eq:fusion}, and any empty cluster is reinitialized at the sample with the largest minimum weighted distance to existing centroids. The procedure is detailed in Algorithm~1, and its formal convergence and corruption-isolation guarantees are established in Propositions~\ref{prop:convergence} and \ref{prop:robustness}.
+
+\begin{table}[htbp]
+    \centering
+    \footnotesize
+    \begin{tabularx}{\textwidth}{X}
+        \toprule
+        \textbf{Algorithm 1:} Per-Sample Reliability-Weighted Multi-View $K$-Means (RW-MVK) \\
+        \midrule
+        \textbf{Input:} Standardized views $\{\tilde{\mathbf{z}}_i^{(v)}, \tilde{\mathbf{z}}_i^{(d)}\}_{i=1}^n$, health reliabilities $\{q_{vi}, q_{di}\}_{i=1}^n$, number of clusters $K$, gating temperature $\lambda$, maximum iterations $T$, convergence tolerance $\epsilon$. \\
+        \textbf{Output:} Cluster assignments $\{\ell_i\}_{i=1}^n$ and view-specific centroids $\{\mathbf{c}_k^{(v)}, \mathbf{c}_k^{(d)}\}_{k=1}^K$. \\[2pt]
+        1: Compute per-sample modality weights $w_{vi}, w_{di}$ for all $i \in \{1,\dots,n\}$ via Eq.~\eqref{eq:weights}. \\
+        2: Initialize centroids $\{\mathbf{c}_k^{(v)}, \mathbf{c}_k^{(d)}\}_{k=1}^K$ by running $K$-means on the product embeddings $[\sqrt{w_{vi}}\tilde{\mathbf{z}}_i^{(v)}, \sqrt{w_{di}}\tilde{\mathbf{z}}_i^{(d)}]$. \\
+        3: \textbf{for} iteration $t = 1$ \textbf{to} $T$ \textbf{do} \\
+        4: \hspace*{1.5em} \textbf{Assignment Step:} Assign each sample $i \in \{1,\dots,n\}$ to cluster $\ell_i \gets \arg\min_{k \in \{1,\dots,K\}} \big( w_{vi}\|\tilde{\mathbf{z}}_i^{(v)} - \mathbf{c}_k^{(v)}\|^2 + w_{di}\|\tilde{\mathbf{z}}_i^{(d)} - \mathbf{c}_k^{(d)}\|^2 \big)$. \\
+        5: \hspace*{1.5em} \textbf{Centroid Update Step:} Update view centroids $\mathbf{c}_k^{(v)}$ and $\mathbf{c}_k^{(d)}$ for all $k \in \{1,\dots,K\}$ via Eq.~\eqref{eq:centroid}. \\
+        6: \hspace*{1.5em} \textbf{if} any cluster $\mathcal{C}_k$ is empty \textbf{then} \\
+        7: \hspace*{3.0em} Reinitialize $(\mathbf{c}_k^{(v)}, \mathbf{c}_k^{(d)})$ at the sample $i^*$ with the largest minimum weighted distance to current centroids. \\
+        8: \hspace*{1.5em} \textbf{end if} \\
+        9: \hspace*{1.5em} Compute objective $J^{(t)}$ via Eq.~\eqref{eq:objective}; \textbf{break if} $|J^{(t-1)} - J^{(t)}| / J^{(t-1)} < \epsilon$. \\
+        10: \textbf{end for} \\
+        11: \textbf{return} Cluster labels $\{\ell_i\}_{i=1}^n$ and centroids $\{\mathbf{c}_k^{(v)}, \mathbf{c}_k^{(d)}\}_{k=1}^K$. \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+\begin{proposition}[Finite-Step Monotonic Convergence of Per-Sample RW-MVK]
+\label{prop:convergence}
+Given a finite calibration dataset $\{\tilde{\mathbf{z}}_i^{(v)}, \tilde{\mathbf{z}}_i^{(d)}\}_{i=1}^n$ with bounded per-sample reliability weights $w_{vi}, w_{di} \in [0, 1]$ satisfying $\sum_{i\in\mathcal{C}_k} w_{mi} > 0$ for all $k \in \{1,\dots,K\}$ and $m \in \{v, d\}$, the alternating minimization sequence generated by Algorithm~1 satisfies $J(\mathcal{P}^{(t+1)}, \mathbf{C}^{(t+1)}) \le J(\mathcal{P}^{(t)}, \mathbf{C}^{(t)})$ at every iteration $t$ and converges to a local stationary partition in a finite number of steps.
+\end{proposition}
+\begin{proof}
+Algorithm~1 performs exact block coordinate descent over the discrete partition space $\mathcal{P} = \{\mathcal{C}_k\}_{k=1}^K$ and continuous centroid space $\mathbf{C} = \{\mathbf{c}_k^{(v)}, \mathbf{c}_k^{(d)}\}_{k=1}^K$:
+(i) For fixed centroids $\mathbf{C}^{(t)}$, the distortion objective $J(\mathcal{P}, \mathbf{C}^{(t)})$ decouples into $n$ independent non-negative point-wise terms. Assigning each sample $i$ to $\ell_i^{(t+1)} = \arg\min_{k} \sum_{m\in\{v,d\}} w_{mi}\|\tilde{\mathbf{z}}_i^{(m)} - \mathbf{c}_k^{(m),(t)}\|^2$ minimizes every individual summand, immediately guaranteeing $J(\mathcal{P}^{(t+1)}, \mathbf{C}^{(t)}) \le J(\mathcal{P}^{(t)}, \mathbf{C}^{(t)})$.
+(ii) For a fixed partition $\mathcal{P}^{(t+1)}$, the objective $J(\mathcal{P}^{(t+1)}, \mathbf{C})$ separates into $2K$ independent quadratic functionals $J_{k,m}(\mathbf{c}) = \sum_{i\in\mathcal{C}_k^{(t+1)}} w_{mi}\|\tilde{\mathbf{z}}_i^{(m)} - \mathbf{c}\|^2$. Computing the gradient and Hessian matrix with respect to $\mathbf{c}$ gives:
+\begin{equation}
+\nabla_{\mathbf{c}} J_{k,m}(\mathbf{c}) = -2\sum_{i\in\mathcal{C}_k^{(t+1)}} w_{mi}(\tilde{\mathbf{z}}_i^{(m)} - \mathbf{c}), \qquad
+\nabla^2_{\mathbf{c}} J_{k,m}(\mathbf{c}) = 2\left(\sum_{i\in\mathcal{C}_k^{(t+1)}} w_{mi}\right)\mathbf{I}_{d_m} \succ \mathbf{0}.
+\end{equation}
+By strict convexity, setting $\nabla_{\mathbf{c}} J_{k,m}(\mathbf{c}) = \mathbf{0}$ yields the unique global minimizer in Eq.~\eqref{eq:centroid}, which enforces $J(\mathcal{P}^{(t+1)}, \mathbf{C}^{(t+1)}) \le J(\mathcal{P}^{(t+1)}, \mathbf{C}^{(t)})$. Because $J \ge 0$ is bounded below by zero and the number of distinct $K$-partitions of $n$ elements is finite ($\le K^n$), the monotonically non-increasing sequence $\{J^{(t)}\}$ must terminate at a stationary partition in finitely many iterations.
+\end{proof}
+
+\begin{proposition}[Exponential Attenuation of Unilateral Sensor Corruption]
+\label{prop:robustness}
+Suppose view $m \in \{v, d\}$ of sample $i$ experiences severe physical degradation such that its standardized descriptor is perturbed by $\bm{\Delta}_i^{(m)}$ while its health reliability drops to $q_{mi} = q_{\min}$, whereas the complementary view $\bar{m}$ remains healthy with $q_{\bar{m}i} = q_{\max}$ ($\Delta q = q_{\max} - q_{\min} > 0$). Under the softmax gating law \eqref{eq:weights}, the relative influence of the degraded view on both cluster assignment distortion and prototype updates decays exponentially at rate $\mathcal{O}(\exp(-\lambda \Delta q))$, and vanishes identically ($w_{di}=0$) under complete depth dropout ($r_i = 0$).
+\end{proposition}
+\begin{proof}
+Substituting $q_{mi} = q_{\min}$ and $q_{\bar{m}i} = q_{\max}$ into Eq.~\eqref{eq:weights} yields the degraded view weight:
+\begin{equation}
+w_{mi}(\lambda) = \frac{\exp(\lambda q_{\min})}{\exp(\lambda q_{\min}) + \exp(\lambda q_{\max})} = \frac{1}{1 + \exp(\lambda \Delta q)} < \exp(-\lambda \Delta q).
+\end{equation}
+During online nearest-centroid assignment, the perturbation induced by $\bm{\Delta}_i^{(m)}$ on the squared distance to cluster $k$ is scaled by $w_{mi}(\lambda) < \exp(-\lambda \Delta q)$. Likewise, in the offline centroid update \eqref{eq:centroid}, the Jacobian of the cluster prototype $\mathbf{c}_k^{(m)}$ with respect to the corrupted descriptor $\tilde{\mathbf{z}}_i^{(m)}$ satisfies:
+\begin{equation}
+\left\| \frac{\partial \mathbf{c}_k^{(m)}}{\partial \tilde{\mathbf{z}}_i^{(m)}} \right\|_2 = \frac{w_{mi}(\lambda)}{w_{mi}(\lambda) + \sum_{j \in \mathcal{C}_k \setminus \{i\}} w_{mj}} \le \frac{\exp(-\lambda \Delta q)}{\sum_{j \in \mathcal{C}_k \setminus \{i\}} w_{mj}}.
+\end{equation}
+Finally, when complete depth dropout occurs ($r_i = 0$), the physical boundary condition enforces $q_{di} = 0$ and $w_{di} = 0$, completely isolating the clustering manifold from undefined depth measurements.
+\end{proof}
+
+The total number of clusters is parameterized as $K = r_{\text{oc}} C$, where $C$ is the number of semantic terrain classes and $r_{\text{oc}} \ge 1$ is an over-clustering ratio. In the unsupervised NYU benchmark, we set $r_{\text{oc}}=1$ ($K=3$) so that clusters correspond one-to-one with annotated classes. In the calibrated online readout, we set $r_{\text{oc}}=8$ ($K=32$) for the four-class Go1 street deployment and $r_{\text{oc}}=3$ ($K=9$) for the three-class standalone readout. Over-clustering captures intra-class appearance sub-modes (e.g., varying floor textures or stair viewing distances) while still mapping deterministically to $C$ terrain classes via the calibration step below.
+
+\subsection{Cluster-to-Terrain Calibration and Online Readout}
+\label{subsec:readout}
+Let $\ell_i \in \{1,\dots,K\}$ denote the RW-MVK cluster index of calibration sample $i$ and $y_i \in \{0,\dots,C-1\}$ denote its ground-truth terrain class. Each cluster $k$ is mapped to a physical terrain class $m_k$ by majority vote over the calibration set:
+\begin{equation}
+m_k = \arg\max_{c\in\{0,\dots,C-1\}}
+\sum_{i:\ell_i=k}\mathbb{I}[y_i=c].
+\label{eq:mapping}
+\end{equation}
+Any cluster without labelled calibration samples is assigned to the global majority class. Crucially, this calibration step uses labels solely to name the unsupervised clusters; it never alters the RW-MVK centroids or trains a discriminative decision boundary.
+
+During online execution at time $t$, the incoming RGB-D descriptor pair is standardized using the stored calibration scalers, its instantaneous health weights $(w_{v,t}, w_{d,t})$ are computed from Eq.~\eqref{eq:weights}, and the sample is assigned to the nearest centroid $\hat{k}_t$ under the reliability-weighted distance. The published terrain label is $\hat{C}_t = m_{\hat{k}_t}$ after passing through a causal 5-frame majority filter to suppress isolated single-frame label flips. A supervised ExtraTrees classifier is evaluated in Section~\ref{subsec:go1_cluster} strictly as an upper-bound reference and is never used in the online system.
+
+\subsection{Semantic-Adaptive Particle Filter (SAPF)}
+\label{subsec:sapf}
+The back-end estimator tracks the 6-DoF robot pose $\mathbf{x}_t = [p_x,p_y,p_z,\phi,\theta,\psi]^T$ (where $\phi,\theta,\psi$ denote roll, pitch, and yaw) using a set of $N$ weighted particles $\{\mathbf{x}^{[i]}_t,w^{[i]}_t\}_{i=1}^{N}$.
+
+\subsubsection{Semantic-Gated Kinematic Motion Model}
+The state transition of particle $i$ is governed by:
+\begin{equation}
+    \mathbf{x}^{[i]}_t = \mathbf{x}^{[i]}_{t-1} + \mathbf{u}_t + \bm{\epsilon}_t(C_t),
+    \quad \bm{\epsilon}_t(C_t) \sim \mathcal{N}(\mathbf{0},\mathbf{Q}(C_t)),
+    \label{eq:motion}
+\end{equation}
+where $\mathbf{u}_t$ is the proprioceptive leg-odometry increment. The process noise covariance $\mathbf{Q}(C_t)$ is dynamically gated by the online terrain label $C_t$:
+\begin{equation}
+    \mathbf{Q}(C_t) = \mathrm{diag}\!\left(\bm{\sigma}_{\text{base}}^{2} + \bm{\sigma}_{C_t}^{2}\right),
+    \label{eq:qct}
+\end{equation}
+where $\bm{\sigma}_{\text{base}}$ is the nominal flat-ground process noise standard deviation and $\bm{\sigma}_{C_t}$ is a class-specific directional boost vector (Table~\ref{tab:process_noise}). Specifically, \textit{Stairs} ($C_t=1$) strongly inflates vertical ($z$) and pitch ($\theta$) variance to capture step elevation climbs; \textit{Obstacle} ($C_t=2$) inflates horizontal ($x,y$) and yaw ($\psi$) variance to accommodate sudden avoidance detours; and \textit{Tactile} ($C_t=3$) applies a mild planar boost. A Standard Particle Filter (\textbf{SPF}) uses $\mathbf{Q}_{\text{base}} = \mathrm{diag}(\bm{\sigma}_{\text{base}}^2)$ for all labels, whereas a Large-Covariance Particle Filter (\textbf{LPF}) permanently sets $\bm{\sigma}_{C_t}$ to the elementwise maximum $\bm{\sigma}_{\max} = \max_c \bm{\sigma}_c$ across all classes at every time step.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Directional process-noise standard deviations used in Eq.~\eqref{eq:qct}. Positions are in metres and angles in radians. The diagonal process variance is the sum of squared base and class-specific standard deviations.}
+    \label{tab:process_noise}
+    \footnotesize
+    \setlength{\tabcolsep}{4pt}
+    \begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}X cccccc}
+        \toprule
+        \textbf{Quantity / Terrain Class} & $x$ (m) & $y$ (m) & $z$ (m) & roll $\phi$ (rad) & pitch $\theta$ (rad) & yaw $\psi$ (rad) \\
+        \midrule
+        Base Nominal $\bm{\sigma}_{\text{base}}$ & 0.002 & 0.002 & 0.001 & 0.001 & 0.001 & 0.001 \\
+        Flat $\bm{\sigma}_{0}$ ($C_t=0$) & 0 & 0 & 0 & 0 & 0 & 0 \\
+        Stairs $\bm{\sigma}_{1}$ ($C_t=1$) & 0.002236 & 0.002236 & 0.005916 & 0.003873 & 0.010954 & 0.001732 \\
+        Obstacle $\bm{\sigma}_{2}$ ($C_t=2$) & 0.011832 & 0.011832 & 0.001732 & 0.005916 & 0.001732 & 0.010954 \\
+        Tactile $\bm{\sigma}_{3}$ ($C_t=3$) & 0.005 & 0.005 & 0.002 & 0.002 & 0.002 & 0.005 \\
+        \midrule
+        LPF Envelope $\bm{\sigma}_{\max} = \max_c \bm{\sigma}_c$ & 0.011832 & 0.011832 & 0.005916 & 0.005916 & 0.010954 & 0.010954 \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+\subsubsection{Intermittent Observation Model, Resampling, and Uncertainty Reduction}
+The exteroceptive observation is a 6-DoF pose measurement:
+\begin{equation}
+    \mathbf{z}^{\text{pose}}_t = \mathbf{x}_t + \mathbf{n}_t,
+    \quad \mathbf{n}_t \sim \mathcal{N}(\mathbf{0},\mathbf{R}_t),
+    \label{eq:obs}
+\end{equation}
+which updates particle importance weights via Gaussian likelihood evaluation (with angular residuals wrapped to $[-\pi,\pi]$):
+\begin{equation}
+    w^{[i]}_t = \eta\, p(\mathbf{z}^{\text{pose}}_t\mid\mathbf{x}^{[i]}_t)\,w^{[i]}_{t-1}.
+    \label{eq:weight}
+\end{equation}
+To avoid an idealized 50\,Hz ground-truth observation oracle, $\mathbf{z}^{\text{pose}}_t$ is provided strictly at 5\,Hz (once every 10 filter steps) and is completely removed during two 4\,s outage windows ($8$--$12$\,s and $18$--$22$\,s). Between updates and during outages, the filter relies purely on the motion model \eqref{eq:motion}, making process covariance selection decisive. Base observation standard deviations are $0.02$\,m in $x$ and $y$, $0.05$\,m in $z$ on flat ground ($0.10$\,m on stairs), $0.01$\,rad in roll and yaw, and $0.02$\,rad in pitch on stairs. Whenever the effective sample size $\mathrm{ESS}_t = 1/\sum_{i=1}^N (w^{[i]}_t)^2 < N/2$, systematic resampling is executed. The complete online perception-estimation closed loop is formalized in Algorithm~2, and Proposition~\ref{prop:entropy} establishes why SAPF strictly dominates LPF in posterior uncertainty tightness.
+
+\begin{proposition}[Cumulative Uncertainty and Differential Entropy Reduction of SAPF over LPF]
+\label{prop:entropy}
+Consider an open-loop exteroceptive outage window of $M$ consecutive filter steps ($t \in [t_0+1, t_0+M]$) during which the robot traverses flat terrain ($C_t = 0$) for a fraction $\rho_0 \in (0, 1]$ of the steps. Let $\mathbf{P}_M^{\text{SAPF}}$ and $\mathbf{P}_M^{\text{LPF}}$ denote the state error covariances propagated by SAPF (under accurate terrain gating) and LPF ($\mathbf{Q}_{\max} = \mathrm{diag}(\bm{\sigma}_{\text{base}}^2 + \bm{\sigma}_{\max}^2)$), starting from an identical initial covariance $\mathbf{P}_{t_0} \succeq \mathbf{0}$. Then SAPF strictly dominates LPF in posterior covariance trace:
+\begin{equation}
+\operatorname{Tr}(\mathbf{P}_M^{\text{LPF}}) - \operatorname{Tr}(\mathbf{P}_M^{\text{SAPF}}) \ge \rho_0 M \sum_{j=1}^6 \sigma_{\max,j}^2 > 0,
+\end{equation}
+and strictly reduces the Shannon differential entropy of the state belief distribution on flat segments ($\rho_0 = 1$):
+\begin{equation}
+\Delta h \ge \frac{1}{2}\sum_{j=1}^6 \ln\!\left(\frac{P_{t_0,jj} + M(\sigma_{\text{base},j}^2 + \sigma_{\max,j}^2)}{P_{t_0,jj} + M\sigma_{\text{base},j}^2}\right) > 0.
+\end{equation}
+\end{proposition}
+\begin{proof}
+During an observation outage ($t \in [t_0+1, t_0+M]$), the state error covariance under the incremental kinematic model \eqref{eq:motion} evolves additively as $\mathbf{P}_{t_0+M} = \mathbf{P}_{t_0} + \sum_{\tau=1}^M \mathbf{Q}(C_{t_0+\tau})$. For LPF, $\mathbf{Q}^{\text{LPF}} = \mathrm{diag}(\bm{\sigma}_{\text{base}}^2 + \bm{\sigma}_{\max}^2)$ at every step. For SAPF, during the $\rho_0 M$ flat-ground steps ($C_t = 0$), $\bm{\sigma}_0 = \mathbf{0}$ and $\mathbf{Q}(0) = \mathrm{diag}(\bm{\sigma}_{\text{base}}^2)$, while on non-flat steps $\mathbf{Q}(C_t) \preceq \mathbf{Q}^{\text{LPF}}$. Taking the trace difference yields:
+\begin{equation}
+\operatorname{Tr}(\mathbf{P}_M^{\text{LPF}}) - \operatorname{Tr}(\mathbf{P}_M^{\text{SAPF}}) = \sum_{\tau=1}^M \operatorname{Tr}\!\left(\mathbf{Q}^{\text{LPF}} - \mathbf{Q}(C_{t_0+\tau})\right) \ge \rho_0 M \sum_{j=1}^6 \sigma_{\max,j}^2 > 0.
+\end{equation}
+Substituting the numerical values from Table~\ref{tab:process_noise}, the per-step flat-ground variance trace is $\operatorname{Tr}(\mathbf{Q}_{\text{base}}) = 1.20 \times 10^{-5}$ for SAPF versus $\operatorname{Tr}(\mathbf{Q}^{\text{LPF}}) = 4.62 \times 10^{-4}$ for LPF—a $38.5\times$ permanent variance inflation in LPF, corresponding to a $97.4\%$ reduction in accumulated process noise variance under SAPF during flat-ground traversal.
+\end{proof}
+
+\begin{table}[htbp]
+    \centering
+    \footnotesize
+    \begin{tabularx}{\textwidth}{X}
+        \toprule
+        \textbf{Algorithm 2:} Online RA-AHPFF Semantic Readout and 6-DoF SAPF Closed-Loop State Estimation \\
+        \midrule
+        \textbf{Input:} Calibration scalers $\{\bm{\mu}_{\text{cal}}^{(m)}, \bm{\sigma}_{\text{cal}}^{(m)}\}_{m\in\{v,d\}}$, RW-MVK centroids $\{\mathbf{c}_k^{(v)}, \mathbf{c}_k^{(d)}\}_{k=1}^K$, majority lookup $\{m_k\}_{k=1}^K$, process noise table $\{\bm{\sigma}_c\}_{c=0}^{C-1}$, particle count $N$. \\
+        \textbf{Output:} Real-time 6-DoF pose estimate $\hat{\mathbf{x}}_t$ and active terrain label $\hat{C}_t$. \\[2pt]
+        1: Initialize particles $\{\mathbf{x}_0^{[i]}\}_{i=1}^N \sim \mathcal{N}(\mathbf{x}_0, \mathbf{P}_0)$, uniform weights $w_0^{[i]} = 1/N$, and 5-frame causal buffer $\mathcal{B} \gets \emptyset$. \\
+        2: \textbf{for} each filter step $t = 1, 2, \dots$ (at $50\,\text{Hz}$) \textbf{do} \\
+        3: \hspace*{1.5em} \textbf{if} new synchronized RGB-D frame $(\mathbf{X}_t^{(v)}, \mathbf{X}_t^{(d)})$ arrives (at $10\,\text{Hz}$) \textbf{then} \\
+        4: \hspace*{3.0em} Extract physical descriptors $\mathbf{x}_t^{(v)}, \mathbf{x}_t^{(d)}$ inside ROI and standardize to $\tilde{\mathbf{z}}_t^{(v)}, \tilde{\mathbf{z}}_t^{(d)}$. \\
+        5: \hspace*{3.0em} Compute health scores $s_{v,t}, s_{d,t}$ via Eqs.~\eqref{eq:sv}--\eqref{eq:sd} and reliabilities $q_{v,t}, q_{d,t}$. \\
+        6: \hspace*{3.0em} Evaluate softmax weights $(w_{v,t}, w_{d,t})$ via Eq.~\eqref{eq:weights} (setting $w_{d,t}=0, w_{v,t}=1$ if $r_t=0$). \\
+        7: \hspace*{3.0em} Assign nearest cluster $\hat{k}_t \gets \arg\min_{k \in \{1,\dots,K\}} \big(w_{v,t}\|\tilde{\mathbf{z}}_t^{(v)} - \mathbf{c}_k^{(v)}\|^2 + w_{d,t}\|\tilde{\mathbf{z}}_t^{(d)} - \mathbf{c}_k^{(d)}\|^2\big)$. \\
+        8: \hspace*{3.0em} Push mapped terrain class $m_{\hat{k}_t}$ into 5-frame buffer $\mathcal{B}$ and update $\hat{C}_t \gets \text{MajorityVote}(\mathcal{B})$. \\
+        9: \hspace*{1.5em} \textbf{end if} \\
+        10: \hspace*{1.5em} Gate directional process covariance $\mathbf{Q}(\hat{C}_t) = \mathrm{diag}(\bm{\sigma}_{\text{base}}^2 + \bm{\sigma}_{\hat{C}_t}^2)$ via Eq.~\eqref{eq:qct}. \\
+        11: \hspace*{1.5em} Propagate particles $\mathbf{x}_t^{[i]} \gets \mathbf{x}_{t-1}^{[i]} + \mathbf{u}_t + \bm{\epsilon}_t^{[i]}$ with $\bm{\epsilon}_t^{[i]} \sim \mathcal{N}(\mathbf{0}, \mathbf{Q}(\hat{C}_t))$ for $i = 1,\dots,N$. \\
+        12: \hspace*{1.5em} \textbf{if} $5\,\text{Hz}$ exteroceptive pose $\mathbf{z}_t^{\text{pose}}$ is available and $t \notin [8,12]\,\text{s} \cup [18,22]\,\text{s}$ \textbf{then} \\
+        13: \hspace*{3.0em} Update weights $w_t^{[i]} \gets \eta\, p(\mathbf{z}_t^{\text{pose}} \mid \mathbf{x}_t^{[i]}) w_{t-1}^{[i]}$ via Eq.~\eqref{eq:weight} and normalize $\sum_{i=1}^N w_t^{[i]} = 1$. \\
+        14: \hspace*{3.0em} \textbf{if} $\mathrm{ESS}_t = 1/\sum_{i=1}^N (w_t^{[i]})^2 < N/2$ \textbf{then} perform low-variance systematic resampling. \\
+        15: \hspace*{1.5em} \textbf{end if} \\
+        16: \hspace*{1.5em} Output linear weighted mean for translation and circular weighted mean for orientation as $\hat{\mathbf{x}}_t$. \\
+        17: \textbf{end for} \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+\subsection{Controlled ROS/Gazebo Co-Simulation Integration}
+\label{subsec:ros_setup}
+The framework is implemented in ROS \cite{quigley2009ros} and Gazebo \cite{koenig2004design} on a Unitree Go1 quadruped equipped with a forward-facing RGB-D camera. The perception node extracts RA-AHPFF descriptors, evaluates health weights, and publishes $\hat{C}_t$ at $\sim 10\,\text{Hz}$. The SAPF node runs at $50\,\text{Hz}$ with $N=500$ particles. The street environment contains a concrete sidewalk, curb and road, brick facade, yellow tactile paving, a ten-step staircase ($0.15\,\text{m}$ rise, $0.30\,\text{m}$ run), a bollard, street furniture, static and walking pedestrians, and a human handler model. To enforce strict counterfactual repeatability across multi-seed filter comparisons—isolating perception degradation and covariance gating from low-level locomotion controller divergence—the robot and handler follow an identical, repeatable kinematic reference trajectory across all evaluated filters. The nominal forward view and the degraded preview used in the Go1 study are shown in Fig.~\ref{fig:go1_scene}.
+
+%% ==========================================
+%% 4. Experiments
+%% ==========================================
+\section{Experiments}
+\label{sec:experiments}
+
+\subsection{Experimental Design, Dataset Inventory, and Data-Upload Manifest}
+\label{subsec:design}
+To make the empirical evidence auditable end-to-end, the study is organized as twelve experiments (E0--E11, Table~\ref{tab:experiment_matrix}) spanning data audit, clustering, calibration, filtering, statistical testing, and computational cost. Each experiment states its dataset, split, seed count, metric, and the manuscript or source-data artifact that contains its result. This design directly addresses four questions that are often left implicit: which experiments are necessary, which datasets support them, which data must be uploaded, and whether the evidence is sufficient for the claims made.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Experiment matrix. Every reported number is tied to a dataset, a repeat count, a metric, and an auditable artifact. NYU-51 denotes the verified 51-frame NYU Depth V2 subset; Go1-351 denotes the 351-frame in-scene calibration set.}
+    \label{tab:experiment_matrix}
+    \scriptsize
+    \setlength{\tabcolsep}{3.0pt}
+    \renewcommand{\arraystretch}{1.05}
+    \begin{tabularx}{\textwidth}{@{}l >{\raggedright\arraybackslash}p{3.05cm} >{\raggedright\arraybackslash}p{3.25cm} >{\raggedright\arraybackslash}p{3.35cm} >{\raggedright\arraybackslash}X@{}}
+        \toprule
+        \textbf{ID} & \textbf{Experiment} & \textbf{Data and repeats} & \textbf{Metrics} & \textbf{Artifact} \\
+        \midrule
+        E0 & Dataset audit and visual atlas & NYU-51; Go1-351 & RGB, depth, dense masks, colour codes, coverage & Fig.~\ref{fig:dataset_atlas}; \texttt{dataset\_samples/} \\
+        E1 & Clean multi-view clustering & NYU-51; 20 seeds & ACC, NMI, ARI, silhouette & Table~\ref{tab:nyu_ablation}; Fig.~\ref{fig:nyu_ablation} \\
+        E2 & Asymmetric degradation & NYU-51; 20 seeds $\times$ 4 levels & ACC, NMI & Table~\ref{tab:nyu_levels}; Fig.~\ref{fig:nyu_ablation}d \\
+        E3 & Qualitative clustering and per-class error & NYU-51; representative seed + 20-seed recall & t-SNE maps, per-class recall, purity & Fig.~\ref{fig:clustering_qualitative}; Table~\ref{tab:per_class_recall} \\
+        E4 & Modality-weight responsiveness & Go1; four 30\,s corruption sessions & $q_v,q_d,w_v,w_d$ & Table~\ref{tab:weights}; Fig.~\ref{fig:modality_weights} \\
+        E5 & Reliability-to-performance sweep & NYU-51; 20 seeds $\times$ two sweeps & $q,w$, ACC, NMI & Fig.~\ref{fig:reliability_sweep} \\
+        E6 & Hyperparameter sensitivity & NYU-51 and Go1-351 & ACC, NMI, macro-F1 & Table~\ref{tab:sensitivity}; Fig.~\ref{fig:hyperparameter_sensitivity} \\
+        E7 & In-scene calibration and blocked CV & Go1-351; 5-fold blocked/random & ACC, recall, confusion & Tables~\ref{tab:go1_cluster}--\ref{tab:go1_classwise}; Fig.~\ref{fig:blocked_cv_confusion} \\
+        E8 & Zero-shot cross-illumination boundary & Shifted street world; one 30\,s run & $s_v,w_v$, online ACC, RMSE & Section~\ref{subsec:go1_cluster}; \texttt{cross\_illumination/} \\
+        E9 & Standalone 6-DoF filtering & 20 seeds; seven filters & RMSE, stair $Z$ RMSE, $\operatorname{Tr}(\mathbf{Q})$ & Table~\ref{tab:standalone_sapf}; Fig.~\ref{fig:sapf_standalone} \\
+        E10 & Closed-loop Go1 filtering & 3 baseline + 3 degraded 30\,s runs & 3D RMSE, online ACC & Table~\ref{tab:go1_sapf}; Fig.~\ref{fig:trajectory} \\
+        E11 & Runtime, paired statistics, label efficiency & NYU-51, Go1-351; 5 timing repeats, 20 paired seeds, 25 blocked evaluations & ms, Wilcoxon $p$, ACC vs.\ labels & Fig.~\ref{fig:efficiency_statistics}; Tables~\ref{tab:runtime}--\ref{tab:wilcoxon} \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+\begin{table}[htbp]
+    \centering
+    \caption{Dataset inventory and upload manifest. The raw 2.97\,GB NYU Depth V2 \texttt{.mat} file is not redistributed; the extraction script, the 51 selected samples, and the derived descriptors are provided. All Go1 data are generated by the released ROS/Gazebo world and launch files.}
+    \label{tab:dataset_card}
+    \scriptsize
+    \setlength{\tabcolsep}{2.2pt}
+    \renewcommand{\arraystretch}{1.02}
+    \begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{2.55cm} >{\raggedright\arraybackslash}p{2.30cm} >{\raggedright\arraybackslash}p{2.55cm} >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}p{2.65cm}@{}}
+        \toprule
+        \textbf{Dataset / role} & \textbf{Source and access} & \textbf{Classes (ids)} & \textbf{Samples, splits, protocol} & \textbf{Uploaded artifacts} \\
+        \midrule
+        NYU Depth V2 verified subset (E0--E3, E5, E6, E11) & Silberman et al.\ \cite{silberman2012indoor}; research licence & Flat (11), Stairs (215), Obstacle/chair (5) & 51 frames, 17 per class, selected from 1449; all 17 frames with $\ge100$ stair pixels retained; 20 seeds & Raw and standardized descriptors (\texttt{.npy}), labels, frame metadata, 51 RGB, depth, mask, and overlay samples, source-data CSVs \\
+        Go1 street calibration (E4, E6, E7, E11) & This work; released Gazebo street world & Flat, Stairs, Obstacle, Tactile (0--3) & 351 frames: 59/152/85/55; 30\,s sequences; blocked 5-fold CV & \texttt{.npz} features, cluster model \texttt{.joblib}, model JSON, predictions, weights and quality \\
+        Go1 closed-loop (E8, E10) & This work; released launch files & Four terrain classes & 3 nominal + 3 degraded runs, 30\,s each; 5\,Hz pose, outages $[8,12]$ and $[18,22]$\,s & Trajectory \texttt{.npz}, filter JSON, semantic labels, logs, representative figures \\
+        Standalone SAPF (E9) & Synthetic stair profile; released script & Flat, Stairs, Obstacle & 30\,s, 20 seeds, $N=1000$ particles & Per-seed RMSE JSON/CSV, covariance accounting \\
+        Cross-illumination (E8) & Shifted world with dim warm light and fog & Four terrain classes & One zero-shot 30\,s run without recalibration & Predictions, filter JSON, log, trajectory \\
+        Raw NYU Depth V2 archive & External 2.97\,GB NYU \texttt{.mat} archive & 894 annotated classes & 1449 RGB-D frames & Not redistributed; extraction script and checksums provided \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+\textbf{Which data are uploaded?} The package contains seven categories: (i) raw and standardized NYU descriptors, labels, and frame metadata; (ii) the 51 selected NYU RGB images, metric-depth arrays, dense masks, and overlays; (iii) Go1 calibration features, fitted cluster models, supervised upper-bound models, and online predictions; (iv) tidy source-data CSVs for every data-driven panel; (v) trajectory, filter, and degradation-run outputs; (vi) ROS/Gazebo world and launch files plus all analysis scripts; (vii) figure PDFs, 1000\,dpi PNGs, dataset cards, this experiment matrix, and SHA-256 checksums.
+
+\textbf{Are the experiments sufficient?} The original study already covered clean and degraded clustering, calibration, cross-illumination, standalone filtering, and closed-loop filtering. A careful audit of the earlier draft identified three residual gaps: the absence of a stand-alone qualitative clustering comparison, the near-total absence of colour RGB/depth/mask visualizations, and the lack of explicit statistical, runtime, and label-efficiency evidence. Experiments E0, E3, and E11 close these gaps. They also expose a nuanced result that aggregate accuracy hides: under severe corruption the proposed method is statistically tied with the depth-only control on accuracy ($60.0\%$ vs.\ $59.6\%$, $p=0.797$), but it attains the best severe macro-recall ($60.0\%$) and preserves obstacle recall ($29.7\%$ vs.\ $23.5\%$) without requiring an oracle that reveals which modality is corrupted. We therefore retain the depth-only control as an honest strong baseline rather than claiming a significant accuracy advantage over it. The remaining boundary is scale: NYU-51 is a verified pilot subset and Go1-351 is a single simulated street. Large-scale outdoor benchmarks are discussed in Section~\ref{subsec:discussion}.
+
+\subsection{NYU Depth V2 Benchmark Subset and Asymmetric Degradation Study}
+\label{subsec:nyu}
+We first evaluate unsupervised multi-view terrain clustering on verified classes from the NYU Depth V2 dataset \cite{silberman2012indoor, tang2025cascading}: floor (\texttt{id=11}), stairs (\texttt{id=215}), and chair/obstacle proxy (\texttt{id=5}). We explicitly correct a recurring indexing error in prior literature where 1-based NYU IDs \texttt{1/42/4} (corresponding to book/shelves/ceiling) were mistakenly extracted as terrain classes. Across the entire 1449-image NYU Depth V2 benchmark, exactly 17 frames contain at least 100 annotated stair pixels. To prevent severe class imbalance from distorting unsupervised clustering metrics (ACC, NMI, ARI), we construct a strictly balanced subset of 51 images (17 per class). Descriptors are extracted inside the ground-truth object masks so that the experiment isolates multi-view feature fusion quality from foreground segmentation errors.
+
+We evaluate clean data and three progressive degradation levels ($1.0, 1.5, 2.0$). At each level, half of the samples per class (stratified) are visually degraded (overexposure, contrast loss, blur, and descriptor noise) and the other half are depth-degraded (pixel dropout, compressed depth span, and gradient noise), so that every sample loses exactly one modality. Each configuration is evaluated across 20 random seeds with $K=3$ ($r_{\text{oc}}=1$) using identical majority-vote cluster-to-class evaluation.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Clustering performance on the verified NYU Depth V2 benchmark subset (17 images per class, 51 total, 20 random seeds). ACC and NMI are percentages (mean$\pm$standard deviation). Severe degradation corresponds to level 2.0.}
+    \label{tab:nyu_ablation}
+    \footnotesize
+    \setlength{\tabcolsep}{4.5pt}
+    \begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}X cccccc}
+        \toprule
+        & \multicolumn{2}{c}{\textbf{Clean Data}} & \multicolumn{2}{c}{\textbf{Severe Degradation (Level 2.0)}} & \multicolumn{2}{c}{\textbf{Severe Diagnostic Metrics}} \\
+        \cmidrule(lr){2-3}\cmidrule(lr){4-5}\cmidrule(lr){6-7}
+        \textbf{Method} & ACC (\%) & NMI (\%) & ACC (\%) & NMI (\%) & ARI & Silhouette \\
+        \midrule
+        Vision only & 46.2$\pm$3.1 & 8.0$\pm$2.0 & 42.5$\pm$4.0 & 5.5$\pm$4.0 & $-$0.005 & 0.432 \\
+        Depth only & 65.0$\pm$0.7 & 33.2$\pm$1.1 & 59.6$\pm$3.5 & \textbf{27.1$\pm$4.5} & 0.194 & 0.345 \\
+        Fixed concat & 56.6$\pm$2.0 & 24.7$\pm$4.1 & 54.4$\pm$5.2 & 19.1$\pm$5.0 & 0.121 & 0.246 \\
+        PCA average & 68.5$\pm$3.4 & 35.8$\pm$3.5 & 49.2$\pm$6.0 & 11.2$\pm$6.8 & 0.060 & 0.104 \\
+        Uniform weighted & 56.7$\pm$1.7 & 24.8$\pm$3.6 & 54.2$\pm$5.3 & 18.7$\pm$5.5 & 0.121 & 0.248 \\
+        Shuffled reliability & 66.7$\pm$3.6 & 33.9$\pm$3.3 & 56.2$\pm$3.3 & 21.2$\pm$4.2 & 0.148 & 0.215 \\
+        \textbf{RA-AHPFF (Ours)} & \textbf{71.1$\pm$2.1} & \textbf{38.3$\pm$2.4} & \textbf{60.0$\pm$4.7} & 23.2$\pm$5.1 & \textbf{0.195} & 0.208 \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+\begin{table}[htbp]
+    \centering
+    \caption{Mean clustering accuracy (\%) across progressive degradation levels on the NYU Depth V2 subset (20 seeds per level).}
+    \label{tab:nyu_levels}
+    \footnotesize
+    \begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}X cccc}
+        \toprule
+        \textbf{Method} & \textbf{Clean} & \textbf{Level 1.0} & \textbf{Level 1.5} & \textbf{Level 2.0 (Severe)} \\
+        \midrule
+        Vision only & 46.2 & 44.9 & 44.7 & 42.5 \\
+        Depth only & 65.0 & 63.5 & 61.0 & 59.6 \\
+        Fixed concat & 56.6 & 59.3 & 55.9 & 54.4 \\
+        PCA average & 68.5 & 55.2 & 52.5 & 49.2 \\
+        Uniform weighted & 56.7 & 59.6 & 55.4 & 54.2 \\
+        Shuffled reliability & 66.7 & 60.1 & 59.1 & 56.2 \\
+        \textbf{RA-AHPFF (Ours)} & \textbf{71.1} & 60.4 & \textbf{60.2} & \textbf{60.0} \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+\begin{figure}[htbp]
+    \centering
+    \IfFileExists{Figure2_nyu_clustering.pdf}{%
+        \includegraphics[width=0.96\textwidth]{Figure2_nyu_clustering.pdf}%
+    }{\IfFileExists{ge1031/Figure2_nyu_clustering.pdf}{%
+        \includegraphics[width=0.96\textwidth]{ge1031/Figure2_nyu_clustering.pdf}%
+    }{\IfFileExists{figs/ge1031/Figure2_nyu_clustering.pdf}{%
+        \includegraphics[width=0.96\textwidth]{figs/ge1031/Figure2_nyu_clustering.pdf}%
+    }{%
+        \framebox{\parbox{0.96\textwidth}{%
+            \vspace{4pt}\centering
+            \textbf{Vector Figure Reference: \texttt{Figure2\_nyu\_clustering.pdf}} \\[3pt]
+            \scriptsize
+            Panels: (a) Clean vs.\ Severe ACC (\%) across 7 baselines (RA-AHPFF reaches $71.1\%$ clean, $60.0\%$ severe); (b) NMI (\%); (c) Adjusted Rand Index (ARI $=0.195$ vs.\ $-0.005$ for Vision only); (d) Monotonic resilience trajectory across degradation levels $0, 1.0, 1.5, 2.0$ (20 seeds).
+            \vspace{4pt}
+        }}%
+    }}}
+    \caption{Clustering results on the verified NYU Depth V2 benchmark subset: (a) ACC (\%), (b) NMI (\%), and (c) Adjusted Rand index comparing Clean vs.\ Severe Degradation (Level 2.0) across all 7 methods; (d) ACC trajectory across degradation levels $0$ (clean), $1.0$, $1.5$, and $2.0$ (severe). Bars show mean$\pm$s.d.\ over 20 seeds; the proposed method is highlighted.}
+    \label{fig:nyu_ablation}
+\end{figure}
+
+Tables~\ref{tab:nyu_ablation}--\ref{tab:nyu_levels} and Fig.~\ref{fig:nyu_ablation} demonstrate three key phenomena:
+\begin{enumerate}
+    \item \textbf{Elimination of Cross-Modal Negative Transfer:} Naive \textit{Fixed concat} ($56.6\%$ clean, $54.4\%$ severe) and \textit{Uniform weighted} ($56.7\%$ clean, $54.2\%$ severe) perform substantially worse than \textit{Depth only} ($65.0\%$ clean, $59.6\%$ severe), because uncalibrated visual noise dilutes the geometric structure. Similarly, \textit{PCA average} collapses to $49.2\%$ under severe degradation due to incompatible subspace addition. \textbf{RA-AHPFF} achieves the highest accuracy on both clean data ($71.1\%$ ACC, $38.3\%$ NMI) and severe degradation ($60.0\%$ ACC, $0.195$ ARI).
+    \item \textbf{Verification of Sample-Specific Health Alignment:} Randomly permuting the health weights across samples (\textit{Shuffled reliability}) drops clean accuracy from $71.1\%$ to $66.7\%$ and severe accuracy from $60.0\%$ to $56.2\%$, confirming that per-sample health alignment is the active driver of robustness.
+    \item \textbf{Why Silhouette and Variance Scores Must Not Drive Modality Weights:} Under severe degradation, \textit{Vision only} exhibits the highest silhouette score ($0.432$) despite having the worst semantic accuracy ($42.5\%$) and near-zero ARI ($-0.005$), because overexposed frames collapse into artificially compact, non-semantic clusters. This directly proves Eq.~\eqref{eq:inequality} and validates why RA-AHPFF outperforms residual- or compactness-driven weighting \cite{hu2022view, yang2025deep}.
+\end{enumerate}
+
+\subsection{In-Scene Cluster Calibration, Blocked Cross-Validation, and Cross-Illumination Check}
+\label{subsec:go1_cluster}
+We next evaluate the calibrated readout on 351 RGB-D frames collected in the Go1 street scene (Flat: 59, Stairs: 152, Obstacle: 85, Tactile: 55). To prevent temporal leakage between adjacent video frames, we compare standard \textbf{Random 5-fold CV} against \textbf{Blocked 5-fold CV}, which sorts each class by timestamp and assigns contiguous temporal blocks to folds. Within each blocked fold, per-view scalers, RW-MVK centroids ($K=32, r_{\text{oc}}=8$), and majority-vote mappings \eqref{eq:mapping} are fitted strictly on the training blocks before evaluating on the held-out block.
+
+\begin{table}[htbp]
+    \centering
+    \caption{In-scene terrain readout on the 351-sample Go1 calibration set ($K=32, r_{\text{oc}}=8$). Per-class recall values are from the strict temporally blocked protocol.}
+    \label{tab:go1_cluster}
+    \footnotesize
+    \begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}X cccccc}
+        \toprule
+        \textbf{Readout Paradigm} & \textbf{Random CV (\%)} & \textbf{Blocked CV (\%)} & \textbf{Flat} & \textbf{Stairs} & \textbf{Obstacle} & \textbf{Tactile} \\
+        \midrule
+        Cluster readout (RA-AHPFF) & 91.2 & 77.8 & 0.44 & 0.87 & 0.79 & 0.87 \\
+        Supervised ExtraTrees (Upper Bound) & 97.7 & 80.9 & 0.69 & 0.88 & 0.76 & 0.82 \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+\begin{table}[htbp]
+    \centering
+    \caption{Class-wise precision (P), recall (R), F1-score, and balanced accuracy under temporally blocked 5-fold cross-validation on the 351-sample Go1 set.}
+    \label{tab:go1_classwise}
+    \footnotesize
+    \begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}X cccccc}
+        \toprule
+        & \multicolumn{3}{c}{\textbf{Cluster Readout (RA-AHPFF)}} & \multicolumn{3}{c}{\textbf{Supervised ExtraTrees}} \\
+        \cmidrule(lr){2-4}\cmidrule(lr){5-7}
+        \textbf{Class} & P & R & F1 & P & R & F1 \\
+        \midrule
+        Flat & 0.41 & 0.44 & 0.43 & 0.52 & 0.69 & 0.59 \\
+        Stairs & 0.90 & 0.87 & 0.89 & 0.88 & 0.88 & 0.88 \\
+        Obstacle & 0.89 & 0.79 & 0.84 & 0.92 & 0.76 & 0.83 \\
+        Tactile & 0.72 & 0.87 & 0.79 & 0.92 & 0.82 & 0.87 \\
+        \midrule
+        Macro avg & 0.73 & 0.74 & 0.73 & 0.81 & 0.79 & 0.79 \\
+        Balanced acc & \multicolumn{3}{c}{0.74} & \multicolumn{3}{c}{0.79} \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+Tables~\ref{tab:go1_cluster}--\ref{tab:go1_classwise} show that while Random CV yields $91.2\%$, the leakage-free Blocked CV yields $77.8\%$ for our unsupervised cluster readout—retaining $96.2\%$ of the performance of the supervised ExtraTrees upper bound ($80.9\%$) without training a discriminative classifier. Importantly, the safety-critical classes achieve high blocked recall (\textit{Stairs}: $0.87$, \textit{Tactile}: $0.87$, \textit{Obstacle}: $0.79$). From the blocked confusion matrix $[[26,9,5,19],[17,132,3,0],[13,5,67,0],[7,0,0,48]]$, \textit{Flat} (recall $0.44$) is confused primarily with \textit{Tactile} ($19/59$) and \textit{Stairs} ($9/59$). In the online closed loop over three 30\,s runs, the calibrated readout achieves $90.1\pm1.0\%$ time-aligned accuracy at baseline and $77.6\pm1.6\%$ under simultaneous overexposure, horizontal motion blur, and $50\%$ depth dropout ($6$--$20$\,s).
+
+\paragraph{Zero-Shot Cross-Illumination Boundary Test.}
+When the model calibrated on the nominal street scene is deployed zero-shot into a modified world featuring dim warm lighting, a darkened sky, and heavy fog without recalibration, the visual health score automatically drops to a mean of $s_v = 0.324$ and the visual weight to $w_v = 0.203$, shifting reliance onto the geometric depth view. Online semantic accuracy declines from $90.1\%$ to $73.3\%$ (with \textit{Flat} suppressed by fog-induced contrast loss), and the SAPF overall 3D RMSE increases from $0.088\,\text{m}$ to $0.149\,\text{m}$. This confirms that while health gating cushions severe photometric shift, target-domain calibration or online illumination normalization is required for cross-environment deployment.
+
+\subsection{Modality Weight Responsiveness under Modality-Specific Degradation}
+\label{subsec:weights_exp}
+To verify that the per-sample weights respond selectively to the physical channel undergoing degradation rather than to terrain geometry alone, we executed four sessions (Baseline, Overexposure, Motion Blur, and $50\%$ Depth Dropout) with corruption active during $t \in [6,20]\,\text{s}$.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Mean modality weights and health qualities during the $6$--$20\,\text{s}$ degradation window in the Go1 street scene.}
+    \label{tab:weights}
+    \footnotesize
+    \begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}X cccc}
+        \toprule
+        \textbf{Condition} & Visual Weight $w_v$ & Depth Weight $w_d$ & Visual Quality $q_v$ & Depth Quality $q_d$ \\
+        \midrule
+        Baseline & 0.425 & 0.575 & 0.760 & 0.839 \\
+        Overexposure & \textbf{0.174} & \textbf{0.826} & 0.442 & 0.844 \\
+        Motion blur & \textbf{0.338} & \textbf{0.662} & 0.668 & 0.843 \\
+        Depth dropout & \textbf{0.724} & \textbf{0.276} & 0.761 & 0.513 \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+Table~\ref{tab:weights} confirms bidirectional adaptation: overexposure lowers $q_v$ from $0.760$ to $0.442$ and suppresses $w_v$ from $0.425$ to $0.174$ ($w_d \to 0.826$). Conversely, depth dropout lowers $q_d$ from $0.839$ to $0.513$, reducing $w_d$ to $0.276$ and elevating $w_v$ to $0.724$.
+
+\subsection{Reliability-to-Performance Sweep and Hyperparameter Sensitivity}
+\label{subsec:reliability_sweep}
+We next sweep one modality from clean data to severe degradation while holding the complementary modality clean on the 51-image NYU subset ($K=3, \lambda=4$, 20 seeds).
+
+\begin{figure}[htbp]
+    \centering
+    \IfFileExists{Figure3_reliability_sweep.pdf}{%
+        \includegraphics[width=0.96\textwidth]{Figure3_reliability_sweep.pdf}%
+    }{\IfFileExists{ge1031/Figure3_reliability_sweep.pdf}{%
+        \includegraphics[width=0.96\textwidth]{ge1031/Figure3_reliability_sweep.pdf}%
+    }{\IfFileExists{figs/ge1031/Figure3_reliability_sweep.pdf}{%
+        \includegraphics[width=0.96\textwidth]{figs/ge1031/Figure3_reliability_sweep.pdf}%
+    }{%
+        \framebox{\parbox{0.96\textwidth}{%
+            \vspace{4pt}\centering
+            \textbf{Vector Figure Reference: \texttt{Figure3\_reliability\_sweep.pdf}} \\[3pt]
+            \scriptsize
+            Panels: (a)--(b) Unilateral visual degradation sweep ($q_v, w_v \downarrow$ from $0.281 \to 0.100$; ACC $71.3\% \to 64.7\%$); (c)--(d) Unilateral depth degradation sweep ($q_d, w_d \downarrow$ from $0.719 \to 0.279$; ACC $71.3\% \to 59.0\%$ with partial recovery once the clean visual view dominates).
+            \vspace{4pt}
+        }}%
+    }}}
+    \caption{Reliability-to-performance sweep on the NYU subset: (a)--(b) visual degradation trajectory showing $q_v$ and $w_v$ drops alongside ACC ($71.3\% \to 64.7\%$) and NMI ($38.4\% \to 32.9\%$) under visual sweep; (c)--(d) depth degradation trajectory showing $q_d$ and $w_d$ drops alongside ACC ($71.3\% \to 59.0\%$) and NMI ($38.4\% \to 25.2\%$) with partial recovery once the clean visual stream dominates. Shaded bands denote $\pm$s.d.\ over 20 seeds.}
+    \label{fig:reliability_sweep}
+\end{figure}
+
+As shown in Fig.~\ref{fig:reliability_sweep}, degrading the visual stream reduces $w_v$ from $0.281$ to $0.100$, limiting the accuracy drop to $6.6\%$. In the depth sweep, as $w_d$ drops from $0.719$ to $0.279$, accuracy initially declines and then partially recovers at high degradation levels as the corrupted depth view is strongly downweighted and the clean visual view takes over, consistent with Proposition~\ref{prop:robustness}. Furthermore, Table~\ref{tab:sensitivity} reports the sensitivity of the framework to the gating temperature $\lambda$ and the over-clustering ratio $r_{\text{oc}}$. Setting $\lambda=4$ and $r_{\text{oc}}=8$ provides the optimal balance between outlier suppression and intra-class mode coverage.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Hyperparameter sensitivity analysis for the softmax gating temperature $\lambda$ (NYU subset at severe degradation level 2.0, $r_{\text{oc}}=1$) and the over-clustering ratio $r_{\text{oc}} = K/C$ (Go1 351-sample set under Blocked 5-fold CV, $\lambda=4$).}
+    \label{tab:sensitivity}
+    \scriptsize
+    \setlength{\tabcolsep}{3.2pt}
+    \renewcommand{\arraystretch}{1.15}
+    \resizebox{\textwidth}{!}{%
+    \begin{tabular*}{1.15\textwidth}{@{\extracolsep{\fill}} l ccccc | cccc @{}}
+        \toprule
+        & \multicolumn{5}{c|}{\textbf{Softmax Temperature $\lambda$ (NYU Level 2.0)}} & \multicolumn{4}{c}{\textbf{Over-Clustering Ratio $r_{\text{oc}} = K/C$ (Go1 Blocked CV)}} \\
+        \textbf{Metric} & $\lambda=0$ & $\lambda=1$ & $\lambda=2$ & $\bm{\lambda=4}$ & $\lambda=8$ & $r_{\text{oc}}=1$ ($K=4$) & $r_{\text{oc}}=2$ ($K=8$) & $r_{\text{oc}}=4$ ($K=16$) & $\bm{r_{\text{oc}}=8}$ ($K=32$) \\
+        \midrule
+        ACC (\%) & 54.2$\pm$5.3 & 56.8$\pm$4.9 & 58.6$\pm$4.8 & \textbf{60.0$\pm$4.7} & 59.4$\pm$5.1 & 61.5 & 68.9 & 74.4 & \textbf{77.8} \\
+        NMI / Macro-F1 & 18.7 (NMI) & 20.4 (NMI) & 22.1 (NMI) & \textbf{23.2 (NMI)} & 22.8 (NMI) & 0.54 (F1) & 0.63 (F1) & 0.70 (F1) & \textbf{0.73 (F1)} \\
+        \bottomrule
+    \end{tabular*}%
+    }
+\end{table}
+
+\subsection{Downstream 6-DoF State Estimation: Fair Comparison and Uncertainty Analysis}
+\label{subsec:sapf_exp}
+We evaluate 6-DoF pose estimation across seven methods—Leg Odometry (\textbf{LO}), Standard PF (\textbf{SPF}), Fixed Large-Covariance PF (\textbf{LPF}), Extended Kalman Filter (\textbf{EKF}), \textbf{SAPF-Pred}, \textbf{SAPF-Oracle}, and \textbf{SAPF-Shuffled}—first in a 20-seed standalone 30\,s stair-climbing simulation ($N=1000$ particles, $73.0\%$ sequence semantic accuracy from the 3-class NYU readout) and then in the 3-seed closed-loop Go1 Gazebo deployment ($N=500$ particles), both with 5\,Hz exteroceptive updates and two 4\,s outages ($8$--$12\,\text{s}$ and $18$--$22\,\text{s}$).
+
+\begin{table}[htbp]
+    \centering
+    \caption{Standalone 6-DoF stair-climbing simulation over 20 random seeds ($N=1000$ particles). Values are mean RMSE in metres (orientation in radians).}
+    \label{tab:standalone_sapf}
+    \footnotesize
+    \setlength{\tabcolsep}{3.5pt}
+    \begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}X ccccc}
+        \toprule
+        \textbf{Method} & \textbf{$Z$ RMSE (m)} & \textbf{Position RMSE (m)} & \textbf{Orientation RMSE (rad)} & \textbf{Stairs $Z$ RMSE (m)} & \textbf{Flat $\operatorname{Tr}(\mathbf{Q})$ ($\times 10^{-5}$)} \\
+        \midrule
+        LO & 0.2960 & 0.3456 & 0.0935 & 0.3342 & N/A \\
+        SPF (Static $\mathbf{Q}_{\text{base}}$) & 0.2597 & 0.2647 & 0.0291 & 0.3141 & \textbf{1.20} \\
+        LPF (Static $\mathbf{Q}_{\max}$) & \textbf{0.0992} & \textbf{0.1107} & 0.0283 & 0.1478 & 46.20 ($38.5\times$) \\
+        EKF & 0.1670 & 0.1734 & 0.0257 & 0.2476 & 1.20 \\
+        SAPF-Shuffled (Control) & 0.1295 & 0.1374 & \textbf{0.0261} & 0.1920 & 18.45 (Random) \\
+        SAPF-Oracle & 0.1014 & 0.1123 & 0.0268 & \textbf{0.1426} & \textbf{1.20} (Gated) \\
+        \textbf{SAPF-Pred (Ours)} & 0.1062 & 0.1158 & 0.0264 & 0.1552 & \textbf{1.20} (Gated) \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+\begin{figure}[htbp]
+    \centering
+    \IfFileExists{Figure4_sapf_comparison.pdf}{%
+        \includegraphics[width=0.96\textwidth]{Figure4_sapf_comparison.pdf}%
+    }{\IfFileExists{ge1031/Figure4_sapf_comparison.pdf}{%
+        \includegraphics[width=0.96\textwidth]{ge1031/Figure4_sapf_comparison.pdf}%
+    }{\IfFileExists{figs/ge1031/Figure4_sapf_comparison.pdf}{%
+        \includegraphics[width=0.96\textwidth]{figs/ge1031/Figure4_sapf_comparison.pdf}%
+    }{%
+        \framebox{\parbox{0.96\textwidth}{%
+            \vspace{4pt}\centering
+            \textbf{Vector Figure Reference: \texttt{Figure4\_sapf\_comparison.pdf}} \\[3pt]
+            \scriptsize
+            Panels: (a) 3D Position RMSE (m), (b) Vertical $Z$ RMSE (m), and (c) Stair Vertical $Z$ RMSE (m) across LO, SPF, LPF, EKF, SAPF-Shuffled, SAPF-Oracle, and SAPF-Pred over 20 seeds, annotated with the $97.4\%$ flat-ground $\operatorname{Tr}(\mathbf{Q})$ reduction ($1.20\times 10^{-5}$ vs.\ $46.20\times 10^{-5}$).
+            \vspace{4pt}
+        }}%
+    }}}
+    \caption{Standalone SAPF comparison over 20 seeds. SAPF-Pred closely matches the tracking accuracy of LPF and SAPF-Oracle while substantially outperforming SPF, EKF, and the temporally permuted control (SAPF-Shuffled). Panels show: (a) Position error RMSE (m), (b) Vertical $Z$ error RMSE (m), and (c) Stair vertical $Z$ error RMSE (m) across Odometry, Standard PF, Large-Q PF, EKF, SAPF-Shuffled, SAPF-Oracle, and SAPF-Pred over 20 individual seeds. Dots are individual seeds, bars are mean$\pm$s.d., and the annotation reports the flat-ground $\operatorname{Tr}(\mathbf{Q})$ accounting behind the $97.4\%$ reduction.}
+    \label{fig:sapf_standalone}
+\end{figure}
+
+\begin{table}[htbp]
+    \centering
+    \caption{Go1 closed-loop pose RMSE over three 30\,s runs (mean$\pm$standard deviation in metres) under 5\,Hz exteroceptive updates with two 4\,s outages.}
+    \label{tab:go1_sapf}
+    \footnotesize
+    \setlength{\tabcolsep}{3.5pt}
+    \begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}X ccccc}
+        \toprule
+        & \multicolumn{2}{c}{\textbf{Baseline ($90.1\%$ Online ACC)}} & \multicolumn{2}{c}{\textbf{Degraded ($77.6\%$ Online ACC)}} & \textbf{Flat Uncertainty} \\
+        \cmidrule(lr){2-3}\cmidrule(lr){4-5}
+        \textbf{Method} & Overall RMSE (m) & $Z$ RMSE (m) & Overall RMSE (m) & $Z$ RMSE (m) & $\operatorname{Tr}(\mathbf{Q}_{\text{flat}})$ ($\times 10^{-5}$) \\
+        \midrule
+        LO & 0.2520$\pm$0.0607 & 0.1861$\pm$0.0684 & 0.2592$\pm$0.0649 & 0.1819$\pm$0.0824 & N/A \\
+        SPF & 0.1711$\pm$0.0313 & 0.1593$\pm$0.0350 & 0.1726$\pm$0.0289 & 0.1607$\pm$0.0337 & \textbf{1.20} \\
+        LPF & 0.0883$\pm$0.0078 & \textbf{0.0640$\pm$0.0049} & \textbf{0.0937$\pm$0.0107} & \textbf{0.0721$\pm$0.0120} & 46.20 ($38.5\times$) \\
+        EKF & 0.1285$\pm$0.0113 & 0.1153$\pm$0.0122 & 0.1267$\pm$0.0110 & 0.1131$\pm$0.0152 & 1.20 \\
+        SAPF-Shuffled & 0.1131$\pm$0.0031 & 0.0979$\pm$0.0080 & 0.0999$\pm$0.0134 & 0.0830$\pm$0.0158 & 19.80 (Random) \\
+        SAPF-Oracle & 0.1015$\pm$0.0098 & 0.0829$\pm$0.0071 & 0.1137$\pm$0.0157 & 0.0962$\pm$0.0197 & \textbf{1.20} (Gated) \\
+        \textbf{SAPF-Pred (Ours)} & \textbf{0.0877$\pm$0.0080} & 0.0663$\pm$0.0088 & 0.0958$\pm$0.0127 & 0.0762$\pm$0.0151 & \textbf{1.20} (Gated) \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+\begin{figure}[htbp]
+    \centering
+    \IfFileExists{Figure5_go1_closed_loop.pdf}{%
+        \includegraphics[width=0.96\textwidth]{Figure5_go1_closed_loop.pdf}%
+    }{\IfFileExists{ge1031/Figure5_go1_closed_loop.pdf}{%
+        \includegraphics[width=0.96\textwidth]{ge1031/Figure5_go1_closed_loop.pdf}%
+    }{\IfFileExists{figs/ge1031/Figure5_go1_closed_loop.pdf}{%
+        \includegraphics[width=0.96\textwidth]{figs/ge1031/Figure5_go1_closed_loop.pdf}%
+    }{%
+        \framebox{\parbox{0.96\textwidth}{%
+            \vspace{4pt}\centering
+            \textbf{Vector Figure Reference: \texttt{Figure5\_go1\_closed\_loop.pdf}} \\[3pt]
+            \scriptsize
+            Panels: (a) Closed-loop $X$--$Z$ stair-climbing trajectory ($X \in [0, 8]\,\text{m}, Z \in [0, 1.5]\,\text{m}$) across two $4\,\text{s}$ outage windows ($8$--$12\,\text{s}$, $18$--$22\,\text{s}$); (b) 10\,Hz online terrain readout $\hat{C}_t$ vs.\ ground-truth terrain schedule ($90.3\%$ single run; $90.1\pm1.0\%$ three-run mean).
+            \vspace{4pt}
+        }}%
+    }}}
+    \caption{Representative closed-loop Go1 trajectory and terrain readout. (a) $X$--$Z$ trajectory showing SPF lagging on the staircase while SAPF-Pred and LPF track the $1.5\,\text{m}$ climb across outage windows. (b) Time-aligned online terrain label $\hat{C}_t$ versus the ground-truth schedule ($90.3\%$ representative run; $90.1\pm1.0\%$ three-run mean).}
+    \label{fig:trajectory}
+\end{figure}
+
+\begin{figure}[htbp]
+    \centering
+    \IfFileExists{Figure6_go1_scene_and_degradation.pdf}{%
+        \includegraphics[width=0.96\textwidth]{Figure6_go1_scene_and_degradation.pdf}%
+    }{\IfFileExists{ge1031/Figure6_go1_scene_and_degradation.pdf}{%
+        \includegraphics[width=0.96\textwidth]{ge1031/Figure6_go1_scene_and_degradation.pdf}%
+    }{\IfFileExists{figs/ge1031/Figure6_go1_scene_and_degradation.pdf}{%
+        \includegraphics[width=0.96\textwidth]{figs/ge1031/Figure6_go1_scene_and_degradation.pdf}%
+    }{%
+        \framebox{\parbox{0.96\textwidth}{%
+            \vspace{4pt}\centering
+            \textbf{Vector Figure Reference: \texttt{Figure6\_go1\_scene\_and\_degradation.pdf}} \\[3pt]
+            \scriptsize
+            Panels: (a) Nominal rectified forward RGB view in Gazebo showing yellow tactile paving, bollard, brick facade, and sidewalk; (b) Degraded view during $6$--$20\,\text{s}$ combining overexposure, horizontal motion blur, and $50\%$ depth pixel dropout.
+            \vspace{4pt}
+        }}%
+    }}}
+    \caption{Nominal and degraded Go1 street-scene views. (a) Rectified forward RGB view containing yellow tactile paving, a bollard, the brick facade, and the sidewalk. (b) Degraded preview used during the $6$--$20\,\text{s}$ window, with overexposure, horizontal motion blur, and $50\%$ depth dropout. This is a Gazebo co-simulation scene, not a physical-robot photograph.}
+    \label{fig:go1_scene}
+\end{figure}
+
+Figure~\ref{fig:go1_scene} shows the nominal and degraded views used by the online perception node. The nominal view supplies the tactile-paving, bollard, facade, and sidewalk context; the degraded panel visualises the photometric corruption applied during the closed-loop sensor-degradation study.
+
+Tables~\ref{tab:standalone_sapf}--\ref{tab:go1_sapf} and Figs.~\ref{fig:sapf_standalone}--\ref{fig:trajectory} establish three central conclusions:
+\begin{enumerate}
+    \item \textbf{Large Improvement over Nominal Static Filtering (SPF and EKF):} In both standalone and Go1 closed-loop studies, \textbf{SAPF-Pred} reduces overall 3D pose RMSE by $56.3\%$ ($0.2647\,\text{m} \to 0.1158\,\text{m}$) and $48.7\%$ ($0.1711\,\text{m} \to 0.0877\,\text{m}$) compared to \textbf{SPF}, eliminating elevation lag during stair ascent.
+    \item \textbf{Causal Role of Terrain Timing (SAPF-Pred vs.\ Shuffled and Oracle):} Permuting the predicted label timestamps (\textbf{SAPF-Shuffled}) degrades tracking RMSE from $0.0877\,\text{m}$ to $0.1131\,\text{m}$ at baseline, proving that temporal alignment of covariance inflation matters. Notably, \textbf{SAPF-Pred} outperforms \textbf{SAPF-Oracle} in the Go1 loop ($0.0877\,\text{m}$ vs.\ $0.1015\,\text{m}$) because the forward-looking RGB-D ROI detects stairs slightly before the robot's base footprint reaches the first step, providing a beneficial anticipatory lead time for vertical covariance expansion.
+    \item \textbf{Resolving the LPF Paradox via Selective Covariance Gating:} While \textbf{LPF} achieves similar raw RMSE ($0.0883\,\text{m}$ baseline, $0.0937\,\text{m}$ degraded) to \textbf{SAPF-Pred} ($0.0877\,\text{m}$ baseline, $0.0958\,\text{m}$ degraded), LPF does so only by permanently injecting maximum process noise ($\operatorname{Tr}(\mathbf{Q}_{\max}) = 46.20 \times 10^{-5}$, a $38.5\times$ inflation over $\operatorname{Tr}(\mathbf{Q}_{\text{base}}) = 1.20 \times 10^{-5}$) across all flat-ground segments. As proven in Proposition~\ref{prop:entropy}, \textbf{SAPF-Pred} achieves the best of both worlds: it matches LPF tracking accuracy during stair climbing while reducing flat-ground process noise variance by $97.4\%$.
+\end{enumerate}
+
+\subsection{Dataset Atlas: RGB, Depth, Dense Annotations, and Class Colour Codes}
+\label{subsec:dataset_atlas}
+Figure~\ref{fig:dataset_atlas} makes the actual data visible rather than reporting only metrics. For each verified NYU terrain class (Flat, NYU id 11; Stairs, id 215; Obstacle/chair, id 5) we show one representative frame as an RGB image, a metric-depth map, a densely annotated mask, and a mask-overlay comparison. The colour code---green for Flat, vermillion for Stairs, blue for Obstacle, orange for Go1 Tactile, grey for other annotated NYU classes, and near-black for unlabelled pixels---is reused in every subsequent figure. Invalid depth is shown in light grey and is never imputed. The bottom row shows the actual Go1 forward RGB view with the lower-central ROI used by the online node, the degraded RGB preview, and the 10\,Hz terrain readout $\hat{C}_t$ against the ground-truth schedule. These are real dataset and simulator frames, not schematic cartoons; the 51 selected NYU RGB/depth/mask/overlay samples are included in the upload package.
+
+\begin{figure}[htbp]
+    \centering
+    \IfFileExists{Figure7_dataset_atlas.pdf}{%
+        \includegraphics[width=0.98\textwidth]{Figure7_dataset_atlas.pdf}%
+    }{\IfFileExists{ge1031/Figure7_dataset_atlas.pdf}{%
+        \includegraphics[width=0.98\textwidth]{ge1031/Figure7_dataset_atlas.pdf}%
+    }{\IfFileExists{figs/ge1031/Figure7_dataset_atlas.pdf}{%
+        \includegraphics[width=0.98\textwidth]{figs/ge1031/Figure7_dataset_atlas.pdf}%
+    }{%
+        \framebox{\parbox{0.96\textwidth}{%
+            \vspace{4pt}\centering
+            \textbf{Vector Figure Reference: \texttt{Figure7\_dataset\_atlas.pdf}} \\[3pt]
+            \scriptsize
+            Rows 1--3: RGB, metric depth, dense annotation mask, and mask overlay for Flat (NYU \#85), Stairs (NYU \#94), and Obstacle (NYU \#199). Bottom row: Go1 nominal RGB with ROI, degraded RGB, and 10\,Hz terrain readout versus ground truth. Legend: class colour codes and NYU annotation ids.
+            \vspace{4pt}
+        }}%
+    }}}
+    \caption{Dataset atlas and class colour code. Rows 1--3 show actual NYU Depth V2 frames from the verified 51-frame subset: RGB, metric depth (0.5--6.0\,m; grey = invalid), dense annotation mask, and mask-overlay comparison for Flat (id 11), Stairs (id 215), and Obstacle/chair (id 5). Bottom row: Go1 street nominal RGB with the $(0.15,0.85)\times(0.35,0.98)$ ROI, the overexposed/blurred/$50\%$ depth-dropout preview, and the online terrain readout versus ground truth (colour code: Flat green, Stairs vermillion, Obstacle blue, Tactile orange).}
+    \label{fig:dataset_atlas}
+\end{figure}
+
+\subsection{Qualitative Clustering Comparison and Per-Class Error Analysis}
+\label{subsec:qualitative_clustering}
+Aggregate ACC and NMI can hide class collapse. Figure~\ref{fig:clustering_qualitative} therefore plots every sample on a common t-SNE map for the clean and severely degraded NYU representations. Marker shape encodes the true class and colour encodes the predicted class, so a shape/colour mismatch is directly visible as a clustering error. Panels (a)--(d) contrast ground truth with the proposed method on clean and severe data; panels (e)--(j) show the six baselines on the same severe embedding; panel (k) reports per-class recall; panel (l) plots silhouette against ACC and exposes the compactness paradox: vision-only clustering has the highest silhouette (above $0.43$) but the lowest severe accuracy ($41.2\%$ in the representative seed).
+
+\begin{figure}[htbp]
+    \centering
+    \IfFileExists{Figure8_clustering_qualitative.pdf}{%
+        \includegraphics[width=0.98\textwidth]{Figure8_clustering_qualitative.pdf}%
+    }{\IfFileExists{ge1031/Figure8_clustering_qualitative.pdf}{%
+        \includegraphics[width=0.98\textwidth]{ge1031/Figure8_clustering_qualitative.pdf}%
+    }{\IfFileExists{figs/ge1031/Figure8_clustering_qualitative.pdf}{%
+        \includegraphics[width=0.98\textwidth]{figs/ge1031/Figure8_clustering_qualitative.pdf}%
+    }{%
+        \framebox{\parbox{0.96\textwidth}{%
+            \vspace{4pt}\centering
+            \textbf{Vector Figure Reference: \texttt{Figure8\_clustering\_qualitative.pdf}} \\[3pt]
+            \scriptsize
+            Panels (a)--(d): clean/severe t-SNE ground truth and proposed predictions. (e)--(j): Vision only, Depth only, Fixed concat, PCA average, Uniform, and Shuffled reliability on the severe embedding. (k) Per-class recall heatmap. (l) Silhouette versus ACC, showing high-silhouette/low-accuracy vision-only failure.
+            \vspace{4pt}
+        }}%
+    }}}
+    \caption{Stand-alone qualitative clustering comparison on the verified NYU subset. (a)--(j) Common t-SNE maps; shape = true terrain (circle Flat, triangle Stairs, square Obstacle), colour = predicted terrain. Severe corruption (level 2.0) removes exactly one modality per sample. (k) Per-class recall at severe degradation. (l) Silhouette score versus accuracy: vision-only clustering is the most compact but semantically the worst, directly validating Eq.~\eqref{eq:inequality} and the rejection of silhouette-driven weights. The map is a representative seed (42); Table~\ref{tab:per_class_recall} reports 20-seed statistics.}
+    \label{fig:clustering_qualitative}
+\end{figure}
+
+\begin{table}[htbp]
+    \centering
+    \caption{Mean per-class recall (\% $\pm$ s.d.) at severe degradation (level 2.0) over 20 seeds on the balanced 51-frame NYU subset. Because every class has 17 samples, macro recall equals ACC. The proposed method is statistically tied with depth-only on ACC ($p=0.797$) but has the highest macro recall and a less collapsed obstacle class.}
+    \label{tab:per_class_recall}
+    \footnotesize
+    \setlength{\tabcolsep}{4.0pt}
+    \begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}X cccc}
+        \toprule
+        \textbf{Method} & \textbf{Flat recall (\%)} & \textbf{Stairs recall (\%)} & \textbf{Obstacle recall (\%)} & \textbf{Macro / ACC (\%)} \\
+        \midrule
+        Vision only & 64.7$\pm$18.3 & 31.2$\pm$15.9 & 31.5$\pm$23.6 & 42.5 \\
+        Depth only & \textbf{88.2$\pm$0.0} & 67.1$\pm$16.7 & 23.5$\pm$19.7 & 59.6 \\
+        Fixed concat & 72.6$\pm$18.0 & 56.8$\pm$13.3 & 33.8$\pm$22.5 & 54.4 \\
+        PCA average & 67.6$\pm$18.8 & 49.1$\pm$25.4 & 30.9$\pm$31.7 & 49.2 \\
+        Uniform weighted & 72.1$\pm$18.3 & 57.1$\pm$12.6 & 33.5$\pm$22.3 & 54.2 \\
+        Shuffled reliability & 75.9$\pm$16.6 & 61.2$\pm$16.7 & 31.5$\pm$26.6 & 56.2 \\
+        \textbf{RA-AHPFF (Ours)} & 82.6$\pm$5.4 & \textbf{67.6$\pm$14.7} & \textbf{29.7$\pm$24.6} & \textbf{60.0} \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+Table~\ref{tab:per_class_recall} clarifies the severe-degradation result. Depth-only is an exceptionally strong control because the severe protocol leaves depth intact for the depth-degraded half of the samples; its ACC is therefore statistically indistinguishable from ours ($59.6\%$ vs.\ $60.0\%$, $p=0.797$). The advantage of RA-AHPFF is not a larger aggregate number on this pilot subset but the combination of (i) the best severe macro recall, (ii) a less collapsed obstacle class ($29.7\%$ vs.\ $23.5\%$), (iii) a $6.1$ percentage-point significant gain over depth-only on clean data ($p=9.4\times10^{-5}$), (iv) no oracle telling the method which modality is corrupted, and (v) a calibrated semantic readout that depth-only clustering does not provide. We report this tie explicitly rather than selecting a protocol that would manufacture a larger gap.
+
+\subsection{Runtime, Paired Statistical Tests, and Calibration-Label Efficiency}
+\label{subsec:runtime_stats}
+Figure~\ref{fig:efficiency_statistics} and Tables~\ref{tab:runtime}--\ref{tab:wilcoxon} answer the remaining sufficiency questions: is the method computationally credible on a CPU-only robot, are the accuracy differences statistically consistent across seeds, and how many calibration labels are actually required?
+
+\begin{figure}[htbp]
+    \centering
+    \IfFileExists{Figure9_efficiency_and_statistics.pdf}{%
+        \includegraphics[width=0.98\textwidth]{Figure9_efficiency_and_statistics.pdf}%
+    }{\IfFileExists{ge1031/Figure9_efficiency_and_statistics.pdf}{%
+        \includegraphics[width=0.98\textwidth]{ge1031/Figure9_efficiency_and_statistics.pdf}%
+    }{\IfFileExists{figs/ge1031/Figure9_efficiency_and_statistics.pdf}{%
+        \includegraphics[width=0.98\textwidth]{figs/ge1031/Figure9_efficiency_and_statistics.pdf}%
+    }{%
+        \framebox{\parbox{0.96\textwidth}{%
+            \vspace{4pt}\centering
+            \textbf{Vector Figure Reference: \texttt{Figure9\_efficiency\_and\_statistics.pdf}} \\[3pt]
+            \scriptsize
+            (a) CPU latency on a log scale with the 100\,ms/10\,Hz budget. (b) Blocked-CV accuracy versus calibration-label fraction on Go1-351 (mean $\pm$ s.e.m., 25 evaluations). (c) Paired Wilcoxon significance versus Ours over 20 seeds. (d) Per-seed paired accuracy gain.
+            \vspace{4pt}
+        }}%
+    }}}
+    \caption{Runtime and statistical sufficiency. (a) CPU-only latency; the full per-frame perception path (health scoring, softmax gating, and nearest-centroid readout) takes $\sim0.31$\,ms, far below the $100$\,ms budget at 10\,Hz, whereas the supervised ExtraTrees upper bound needs $15.1$\,ms per frame. (b) Label efficiency under temporally blocked CV: the cluster readout is already at $77.7\pm3.8\%$ with $25\%$ of the training labels and $77.9\pm3.3\%$ with all labels. (c) Paired Wilcoxon tests; the dashed line is $p=0.05$. (d) Per-seed accuracy gain of Ours over each baseline; horizontal bars are medians.}
+    \label{fig:efficiency_statistics}
+\end{figure}
+
+\begin{table}[htbp]
+    \centering
+    \caption{CPU-only latency (single thread, Python 3.8, 2.4\,GHz-class x86-64; mean $\pm$ s.d. over repeated calls). The 10\,Hz perception budget is 100\,ms per RGB-D frame. Calibration is an offline in-scene step.}
+    \label{tab:runtime}
+    \footnotesize
+    \setlength{\tabcolsep}{4.0pt}
+    \begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}X cc}
+        \toprule
+        \textbf{Operation} & \textbf{Latency} & \textbf{Scope} \\
+        \midrule
+        Health scores (six visual + four depth terms) & 0.25$\pm$0.00\,ms & per frame \\
+        Softmax reliability weights & 0.014$\pm$0.001\,ms & per frame \\
+        Nearest-centroid readout, $K=3$ & 0.040$\pm$0.003\,ms & per frame \\
+        Nearest-centroid readout, $K=32$ & 0.045$\pm$0.004\,ms & per frame \\
+        ExtraTrees inference (300 trees, single thread) & 15.1$\pm$0.3\,ms & per frame \\
+        RW-MVK calibration, $K=3$, $n_{\text{init}}=10$ & 27.8$\pm$0.6\,ms & 51 frames \\
+        RW-MVK calibration, $K=32$, $n_{\text{init}}=10$ & 235.9$\pm$36.0\,ms & 351 frames \\
+        ExtraTrees training (300 trees) & 394.2$\pm$9.7\,ms & 351 frames \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+\begin{table}[htbp]
+    \centering
+    \caption{Paired Wilcoxon signed-rank tests of RA-AHPFF against each baseline over 20 seeds. Gains are percentage points (Ours $-$ baseline); $p<0.05$ is shown in bold. The depth-only control is statistically tied on severe ACC, which we report openly.}
+    \label{tab:wilcoxon}
+    \footnotesize
+    \setlength{\tabcolsep}{4.0pt}
+    \begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}X cccc}
+        \toprule
+        & \multicolumn{2}{c}{\textbf{Clean}} & \multicolumn{2}{c}{\textbf{Severe (level 2.0)}} \\
+        \cmidrule(lr){2-3}\cmidrule(lr){4-5}
+        \textbf{Baseline} & \textbf{Gain (pp)} & \textbf{$p$-value} & \textbf{Gain (pp)} & \textbf{$p$-value} \\
+        \midrule
+        Vision only & $+24.90$ & $\mathbf{1.9\times10^{-6}}$ & $+17.55$ & $\mathbf{1.9\times10^{-6}}$ \\
+        Depth only & $+6.08$ & $\mathbf{9.4\times10^{-5}}$ & $+0.39$ & $0.797$ \\
+        Fixed concat & $+14.51$ & $\mathbf{1.9\times10^{-6}}$ & $+5.59$ & $\mathbf{1.1\times10^{-3}}$ \\
+        PCA average & $+2.55$ & $\mathbf{3.9\times10^{-3}}$ & $+10.78$ & $\mathbf{2.9\times10^{-4}}$ \\
+        Uniform weighted & $+14.41$ & $\mathbf{1.9\times10^{-6}}$ & $+5.78$ & $\mathbf{8.4\times10^{-4}}$ \\
+        Shuffled reliability & $+4.41$ & $\mathbf{1.2\times10^{-3}}$ & $+3.82$ & $\mathbf{1.1\times10^{-2}}$ \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
+
+The clean and severe gains are consistent across seeds: RA-AHPFF wins 20/20 paired seeds against vision-only, fixed concatenation, and uniform fusion; 19/20 against depth-only on clean data; and 14/20 against the shuffled-reliability control under severe corruption. The single non-significant comparison is the severe depth-only tie discussed above. On Go1-351, the cluster readout reaches $77.7\pm3.8\%$ with only $25\%$ of the training labels and $77.9\pm3.3\%$ with $100\%$, i.e., performance saturates at roughly one quarter of the available labels; the supervised upper bound moves from $76.4\pm4.4\%$ to $80.2\pm4.6\%$ over the same range. This is the practical reason for preferring cluster-to-terrain calibration in a sample-starved in-scene deployment: it is competitive at low label budgets and $300\times$ cheaper at inference ($0.045$\,ms vs.\ $15.1$\,ms).
+
+\subsection{Discussion of Methodological Scope, Fail-Safe Asymmetry, and Future Extensions}
+\label{subsec:discussion}
+Our experimental findings highlight both the practical value and the explicit operating boundaries of the proposed pipeline:
+\begin{itemize}
+    \item \textbf{Physical Observability vs.\ Learned Multi-View Weighting:} Unlike deep sample-level fusion \cite{yang2025deep, he2026adaptive}, cluster-wise weighting \cite{hu2022view}, or fuzzy self-weighting \cite{zhu2020self, shi2025deep}, RA-AHPFF does not require GPU backpropagation or clean training distributions to identify sensor failure. Because NYU Depth V2 contains only 17 valid stair frames, our 51-image benchmark and 351-sample Go1 dataset focus on sample-efficient, controlled degradation analysis, calibrating 24-D physical descriptors in milliseconds on a CPU. Extending validation to large-scale outdoor benchmarks such as TartanGround \cite{patel2025tartanground}, SemanticKITTI \cite{behley2019semantickitti}, and the ANYmal GrandTour dataset \cite{tuna2026grandtour} will further test cross-scene scalability.
+    \item \textbf{Fail-Safe Asymmetry of Flat-Ground Recall:} Under strict temporally blocked CV (Table~\ref{tab:go1_classwise}), \textit{Flat} recall is $0.44$ (confused primarily with \textit{Tactile} and \textit{Stairs}), whereas \textit{Stairs} recall is $0.87$ and \textit{Tactile} recall is $0.87$. In assistive guide dog navigation \cite{kim2023transforming, cai2024navigating, yu2026human}, misclassifying a flat segment as tactile paving or stairs is a \textit{benign conservative error} that merely widens the filter covariance temporarily, whereas missing an actual staircase is a safety-critical hazard. Incorporating online illumination normalization will further reduce flat-to-tactile false positives across lighting shifts.
+    \item \textbf{Controlled Kinematic Benchmarking vs.\ Dynamic Hardware Trials:} Using a repeatable kinematic trajectory and 5\,Hz intermittent pose updates in Gazebo enabled exact multi-seed paired comparisons across seven filters under identical outage windows. Integrating the pipeline with a quiet, force-compliant locomotion policy \cite{fan2024force, fan2025force, yu2026human} on a physical Unitree Go1 robot is the natural next step.
+\end{itemize}
+
+Main Figs.~\ref{fig:dataset_atlas}--\ref{fig:efficiency_statistics} provide the dataset atlas, the stand-alone qualitative clustering comparison, and the runtime/statistical audit; Extended Data Figs.~\ref{fig:modality_weights}--\ref{fig:covariance_gating} report the modality-weight response, the hyperparameter sensitivity, the blocked-CV confusion matrices, and the process-covariance accounting behind these conclusions.
+
+%% ==========================================
+%% 5. Conclusion
+%% ==========================================
+\section{Conclusion}
+\label{sec:conclusion}
+We presented a circularity-free, reliability-aware RGB-D terrain clustering front end (RA-AHPFF) coupled with a 6-DoF Semantic-Adaptive Particle Filter (SAPF) for robotic guide dogs operating under asymmetric sensor degradation. By explicitly distinguishing physical sensor reliability from geometric terrain complexity ($\text{Sensor Reliability} \neq \text{Terrain Complexity}$) and computing per-sample modality weights from observable photometric and geometric health functionals prior to clustering, the proposed RW-MVK algorithm guarantees finite-step monotonic convergence and exponential attenuation of corrupted sensor views. Through majority-vote cluster-to-terrain calibration, unsupervised clusters drive real-time online semantic readout without discriminative retraining. On the verified NYU Depth V2 subset, RA-AHPFF achieved $71.1\%$ clean clustering accuracy and $60.0\%$ under severe degradation. In the closed-loop Go1 street deployment, the calibrated readout reached $90.1\pm1.0\%$ online accuracy ($77.8\%$ under temporally blocked CV vs.\ $80.9\%$ for a supervised upper bound) and $77.6\pm1.6\%$ under simultaneous visual-depth corruption. Coupled with SAPF, the online terrain stream reduced 3D tracking RMSE by $48.7\%$ over standard particle filtering during exteroceptive outages, matching the stair-tracking accuracy of a globally inflated covariance baseline while reducing flat-ground process uncertainty volume by $97.4\%$. Paired Wilcoxon tests confirm that these gains are consistent across seeds, while a colour-coded dataset atlas, a stand-alone qualitative clustering comparison, CPU latency measurements, and a calibration-label-efficiency curve make the evidence chain auditable. Future work will extend the framework to large-scale outdoor multi-scene datasets, online domain adaptation under severe illumination shifts, and physical quadrupedal field trials.
+
+\section*{Data and Code Availability}
+The anonymized review package accompanying this submission contains the complete manuscript source, all figure PDFs and 1000\,dpi PNGs, tidy source-data CSVs for every data-driven panel, the 51 selected NYU RGB, depth, dense-mask, and overlay samples, derived NYU and Go1 descriptors, fitted cluster and supervised models, online predictions, trajectory and filter outputs, ROS/Gazebo world and launch files, analysis scripts, dataset cards, the experiment matrix, and SHA-256 checksums. The raw 2.97\,GB NYU Depth V2 archive is not redistributed because of its size and licence; the extraction script reproduces the verified subset from the public archive. The package will be archived in a public repository upon acceptance.
+
+\section*{Acknowledgments}
+This work was supported by the Special Environment Robotics Laboratory at Southwest University of Science and Technology.
+
+%% ==========================================
+%% References (Automatically uses refs.bib on Overleaf, with built-in fallback)
+%% ==========================================
+\IfFileExists{refs.bib}{%
+    \bibliographystyle{unsrt}%
+    \bibliography{refs}%
+}{\IfFileExists{ge1031/refs.bib}{%
+    \bibliographystyle{unsrt}%
+    \bibliography{ge1031/refs}%
+}{\IfFileExists{figs/ge1031/refs.bib}{%
+    \bibliographystyle{unsrt}%
+    \bibliography{figs/ge1031/refs}%
+}{%
+\begin{thebibliography}{99}
+
+\bibitem{hong2022development}
+B. Hong, Z. Lin, X. Chen, J. Hou, S. Lv, Z. Gao, Development and application of key technologies for Guide Dog Robot: A systematic literature review, \textit{Robotics and Autonomous Systems} 154 (2022) 104104.
+
+\bibitem{kim2023transforming}
+J. T. Kim, W. Yu, Y. Kothari, J. Tan, G. Turk, S. Ha, Transforming a quadruped into a guide robot for the visually impaired: Formalizing wayfinding, interaction modeling, and safety mechanism, \textit{arXiv preprint arXiv:2306.14055} (2023).
+
+\bibitem{cai2024navigating}
+S. Cai, A. Ram, Z. Gou, M. A. W. Shaikh, Y.-A. Chen, Y. Wan, K. Hara, S. Zhao, D. Hsu, Navigating real-world challenges: A quadruped robot guiding system for visually impaired people in diverse environments, in: \textit{Proceedings of the 2024 CHI Conference on Human Factors in Computing Systems}, 2024, pp. 1--18.
+
+\bibitem{li2026budd}
+J. Li, M. Farina, L. Mozzarelli, L. Cattaneo, P. Rattamasanaprapai, E. A. Tagarelli, M. Corno, P. Perego, G. Andreoni, E. Lettieri, BUDD-e: An autonomous robotic guide for visually impaired users, \textit{Control Engineering Practice} 172 (2026) 106854.
+
+\bibitem{chen2025bionic}
+G. Chen, Q. Meng, X. Zhu, A. Cao, H. Ding, Y. Lin, A bionic blind-guiding robot based on wheeled-legged foldable structure, \textit{Journal of Field Robotics} 42 (8) (2025) 4389--4413.
+
+\bibitem{yu2026human}
+S. Yu, H. Hwang, T. M. Dang, J. Biswas, N. A. Giudice, S. I. Lee, D. Kim, Human-centered development of guide dog robots: Quiet and stable locomotion control, in: \textit{2026 IEEE International Conference on Robotics and Automation (ICRA)}, IEEE, 2026, pp. 23766--23773.
+
+\bibitem{akhdan2024guiding}
+S. R. Akhdan, Y. Orita, T. Wada, Guiding the human along the path using dog robot based on harness-hand interaction inspired by tractor-trailer model, in: \textit{2024 IEEE International Conference on Robotics and Biomimetics (ROBIO)}, IEEE, 2024, pp. 2092--2098.
+
+\bibitem{bledt2018cheetah}
+G. Bledt, et al., MIT Cheetah 3: Design and control of a robust, dynamic quadruped robot, in: \textit{IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS)}, 2018.
+
+\bibitem{hwang2023system}
+H. Hwang, T. Xia, I. Keita, K. Suzuki, J. Biswas, S. I. Lee, D. Kim, System configuration and navigation of a guide dog robot: Toward animal guide dog-level guiding work, in: \textit{2023 IEEE International Conference on Robotics and Automation (ICRA)}, IEEE, 2023, pp. 9778--9784.
+
+\bibitem{chuang2018deep}
+T.-K. Chuang, N.-C. Lin, J.-S. Chen, C.-H. Hung, Y.-W. Huang, C. Teng, H. Huang, L.-F. Yu, L. Giarr\'e, H.-C. Wang, Deep trail-following robotic guide dog in pedestrian environments for people who are blind and visually impaired-learning from virtual and real worlds, in: \textit{2018 IEEE International Conference on Robotics and Automation (ICRA)}, IEEE, 2018, pp. 5849--5855.
+
+\bibitem{hwang2026guidenav}
+H. Hwang, S. Yang, J. S. Monon, N. A. Giudice, S. I. Lee, J. Biswas, D. Kim, GuideNav: User-informed development of a vision-only robotic navigation assistant for blind travelers, in: \textit{Proceedings of the 21st ACM/IEEE International Conference on Human-Robot Interaction}, 2026, pp. 1129--1139.
+
+\bibitem{bui2026naviformer}
+L. Bui, S. L. Phung, Y. Di, S. T. M. Duong, A. Bouzerdoum, NaviFormer: Multimodal scene segmentation for assistive navigation, \textit{Computer Vision and Image Understanding} 269 (2026) 104793.
+
+\bibitem{miki2022learning}
+T. Miki, J. Lee, J. Hwangbo, L. Wellhausen, V. Koltun, M. Hutter, Learning robust perceptive locomotion for quadrupedal robots in the wild, \textit{Science Robotics} 7 (62) (2022) eabk2822.
+
+\bibitem{nistico2025muse}
+Y. Nistic\`o, J. C. V. Soares, L. Amatucci, G. Fink, C. Semini, MUSE: A real-time multi-sensor state estimator for quadruped robots, \textit{IEEE Robotics and Automation Letters} 10 (5) (2025) 4620--4627.
+
+\bibitem{chen2022multimodal}
+X. Chen, et al., Multi-modal sensor fusion for robust autonomous navigation: A survey, \textit{IEEE Robotics and Automation Letters} (2022).
+
+\bibitem{sun2024bmfnet}
+C. Sun, Q. Zhang, C. Zhuang, M. Zhang, BMFNet: Bifurcated multi-modal fusion network for RGB-D salient object detection, \textit{Image and Vision Computing} 147 (2024) 105048.
+
+\bibitem{wang2026guided}
+B. Wang, Y. Cai, Z. Xu, X. Jia, Guided hierarchical interaction network for RGB-D semantic segmentation, \textit{Image and Vision Computing} 174 (2026) 106139.
+
+\bibitem{wu2024transformer}
+Z. Wu, Z. Zhou, G. Allibert, C. Stolz, C. Demonceaux, C. Ma, Transformer fusion for indoor RGB-D semantic segmentation, \textit{Computer Vision and Image Understanding} 249 (2024) 104174.
+
+\bibitem{tang2025cascading}
+X. Tang, S. Cen, Z. Deng, Z. Zhang, Y. Meng, J. Xie, C. Tang, W. Zhang, G. Zhao, Cascading attention enhancement network for RGB-D indoor scene segmentation, \textit{Computer Vision and Image Understanding} 259 (2025) 104411.
+
+\bibitem{zhu2020self}
+X. Zhu, S. Zhang, Y. Zhu, W. Zheng, Y. Yang, Self-weighted multi-view fuzzy clustering, \textit{ACM Transactions on Knowledge Discovery from Data (TKDD)} 14 (4) (2020) 1--17.
+
+\bibitem{yan2020adaptive}
+F. Yan, X.-D. Wang, Z.-Q. Zeng, C.-Q. Hong, Adaptive multi-view subspace clustering for high-dimensional data, \textit{Pattern Recognition Letters} 130 (2020) 299--305.
+
+\bibitem{nie2020multiview}
+F. Nie, et al., Multi-view clustering via adaptive distillation, \textit{IEEE Transactions on Pattern Analysis and Machine Intelligence} (2020).
+
+\bibitem{shi2025deep}
+M. Shi, X. Zhao, X. Yin, Y. Xiao, J. Guo, Deep self-weighted multi-view fuzzy clustering, \textit{Knowledge-Based Systems} 328 (2025) 114158.
+
+\bibitem{hu2022view}
+S. Hu, Z. Lou, Y. Ye, View-wise versus cluster-wise weight: Which is better for multi-view clustering?, \textit{IEEE Transactions on Image Processing} 31 (2022) 58--71.
+
+\bibitem{houfar2023automatically}
+K. Houfar, D. Samai, F. Dornaika, A. Benlamoudi, K. Bensid, A. Taleb-Ahmed, Automatically weighted binary multi-view clustering via deep initialization (AW-BMVC), \textit{Pattern Recognition} 137 (2023) 109281.
+
+\bibitem{yang2025deep}
+Z. Yang, Y. Tan, Deep multi-view clustering based on sample-level adaptive fusion and clustering structure aggregation, \textit{Neurocomputing} 664 (2025) 132109.
+
+\bibitem{he2026adaptive}
+Y. He, M. Du, Adaptive representation learning framework for incomplete multi-view clustering, \textit{Information Sciences} 751 (2026) 123588.
+
+\bibitem{yang2022robust}
+M. Yang, Y. Li, P. Hu, J. Bai, J. Lv, X. Peng, Robust multi-view clustering with incomplete information, \textit{IEEE Transactions on Pattern Analysis and Machine Intelligence} 45 (1) (2022) 1055--1069.
+
+\bibitem{li2022refining}
+X.-L. Li, M.-S. Chen, C.-D. Wang, J.-H. Lai, Refining graph structure for incomplete multi-view clustering, \textit{IEEE Transactions on Neural Networks and Learning Systems} 35 (2) (2022) 2300--2313.
+
+\bibitem{liu2024low}
+W. Liu, X. Jing, X. Jia, X. Zhu, Y. Hao, Low-rank representation induced missing-view recovery for incomplete multi-view clustering, \textit{Neurocomputing} 595 (2024) 127870.
+
+\bibitem{xia2014robust}
+R. Xia, Y. Pan, L. Du, J. Yin, Robust multi-view spectral clustering via low-rank and sparse decomposition, in: \textit{Proceedings of the AAAI Conference on Artificial Intelligence}, Vol. 28 (1), 2014.
+
+\bibitem{wang2022adversarial}
+Q. Wang, Z. Tao, W. Xia, Q. Gao, X. Cao, L. Jiao, Adversarial multiview clustering networks with adaptive fusion, \textit{IEEE Transactions on Neural Networks and Learning Systems} 34 (10) (2022) 7635--7647.
+
+\bibitem{chen2025multi}
+Z. Chen, X.-J. Wu, T. Xu, H. Li, J. Kittler, Multi-layer multi-level comprehensive learning for deep multi-view clustering, \textit{Information Fusion} 116 (2025) 102785.
+
+\bibitem{chao2021survey}
+G. Chao, S. Sun, J. Bi, A survey on multiview clustering, \textit{IEEE Transactions on Artificial Intelligence} 2 (2) (2021) 146--168.
+
+\bibitem{chowdhury2025deep}
+A. R. Chowdhury, A. Gupta, S. Das, Deep multi-view clustering: A comprehensive survey of the contemporary techniques, \textit{Information Fusion} 119 (2025) 103012.
+
+\bibitem{thrun2005probabilistic}
+S. Thrun, W. Burgard, D. Fox, \textit{Probabilistic Robotics}, MIT Press, Cambridge, MA, 2005.
+
+\bibitem{patel2024review}
+I. Patel, M. Kulkarni, N. Mehendale, Review of sensor-driven assistive device technologies for enhancing navigation for the visually impaired, \textit{Multimedia Tools and Applications} 83 (17) (2024) 52171--52195.
+
+\bibitem{wang2025design}
+Y. Wang, C. Srisawatsakul, A design science conceptual model for generative AI-powered blind assistance systems, in: \textit{International Conference on Natural Language Processing and Information Retrieval}, Springer, 2025, pp. 1065--1080.
+
+\bibitem{wang2026design}
+Y. Wang, C. Srisawatsakul, A design science conceptual model for generative AI-powered blind assistance systems, in: \textit{NLPIR 2025}, Springer, 2026, pp. 1065--1080.
+
+\bibitem{ye2016co}
+C. Ye, S. Hong, X. Qian, W. Wu, Co-robotic cane: A new robotic navigation aid for the visually impaired, \textit{IEEE Systems, Man, and Cybernetics Magazine} 2 (2) (2016) 33--42.
+
+\bibitem{zhong2020virtual}
+Z. Zhong, J. Lee, Virtual Guide Dog: Next-generation pedestrian signal for the visually impaired, \textit{Advances in Mechanical Engineering} 12 (3) (2020) 1687814019883096.
+
+\bibitem{lu2021assistive}
+C.-L. Lu, Z.-Y. Liu, J.-T. Huang, C.-I. Huang, B.-H. Wang, Y. Chen, N.-H. Wu, H.-C. Wang, L. Giarr\'e, P.-Y. Kuo, Assistive navigation using deep reinforcement learning guiding robot with UWB/voice beacons and semantic feedbacks for blind and visually impaired people, \textit{Frontiers in Robotics and AI} 8 (2021) 654132.
+
+\bibitem{yu2025human}
+S. Yu, H. Hwang, T. M. Dang, J. Biswas, N. A. Giudice, S. I. Lee, D. Kim, Human-centered development of guide dog robots: Quiet and stable locomotion control, \textit{arXiv preprint arXiv:2505.11808} (2025).
+
+\bibitem{fan2024force}
+Z. Fan, F. Gao, Z. Chen, Y. Yin, L. Yang, Q. Xi, E. Yang, X. Luo, Force-compliance MPC and robot-user CBFs for interactive navigation and user-robot safety in hexapod guide robots, \textit{IEEE Transactions on Automation Science and Engineering} (2024).
+
+\bibitem{fan2025force}
+Z. Fan, F. Gao, Z. Chen, Y. Yin, L. Yang, Q. Xi, E. Yang, X. Luo, Force-compliance MPC and robot-user CBFs for interactive navigation and user-robot safety in hexapod guide robots, \textit{IEEE Transactions on Automation Science and Engineering} (2025).
+
+\bibitem{chen2024idog}
+L.-B. Chen, W.-Y. Pai, W.-H. Chen, X.-R. Huang, iDog: An intelligent guide dog harness for visually impaired pedestrians based on artificial intelligence and edge computing, \textit{IEEE Sensors Journal} 24 (24) (2024) 41997--42008.
+
+\bibitem{hwang2022system}
+H. Hwang, T. Xia, I. Keita, K. Suzuki, J. Biswas, S. I. Lee, D. Kim, System configuration and navigation of a guide dog robot: Toward animal guide dog-level guiding work, \textit{arXiv preprint arXiv:2210.13368} (2022).
+
+\bibitem{richtsfeld2014learning}
+A. Richtsfeld, T. M\"orwald, J. Prankl, M. Zillich, M. Vincze, Learning of perceptual grouping for object segmentation on RGB-D data, \textit{Journal of Visual Communication and Image Representation} 25 (1) (2014) 64--73.
+
+\bibitem{pan2016feature}
+H. Pan, S. I. Olsen, Y. Zhu, Feature representation of RGB-D images using joint spatial-depth feature pooling, \textit{Pattern Recognition Letters} 80 (2016) 239--248.
+
+\bibitem{xu2023ccfnet}
+G. Xu, W. Zhou, X. Qian, L. Ye, J. Lei, L. Yu, CCFNet: Cross-complementary fusion network for RGB-D scene parsing of clothing images, \textit{Journal of Visual Communication and Image Representation} 90 (2023) 103727.
+
+\bibitem{li2024progressive}
+J. Li, C. Pan, Y. Zheng, D. Zhang, Progressive cross-level fusion network for RGB-D salient object detection, \textit{Journal of Visual Communication and Image Representation} 104 (2024) 104268.
+
+\bibitem{wang2024self}
+J. Wang, Z. Xu, X. Yang, H. Li, B. Li, X. Meng, Self-supervised multi-view clustering in computer vision: A survey, \textit{IET Computer Vision} 18 (6) (2024) 709--734.
+
+\bibitem{fang2023comprehensive}
+U. Fang, M. Li, J. Li, L. Gao, T. Jia, Y. Zhang, A comprehensive survey on multi-view clustering, \textit{IEEE Transactions on Knowledge and Data Engineering} 35 (12) (2023) 12350--12368.
+
+\bibitem{zhang2018multi}
+X. Zhang, H. Gao, G. Li, J. Zhao, J. Huo, J. Yin, Y. Liu, L. Zheng, Multi-view clustering based on graph-regularized nonnegative matrix factorization for object recognition, \textit{Information Sciences} 432 (2018) 463--478.
+
+\bibitem{xu2021multi}
+Y. Xu, M. Wei, Multi-view clustering toward aerial images by combining spectral analysis and local refinement, \textit{Future Generation Computer Systems} 117 (2021) 138--144.
+
+\bibitem{zhang2024learning}
+Q. Zhang, L. Zhang, R. Song, R. Cong, Y. Liu, W. Zhang, Learning common semantics via optimal transport for contrastive multi-view clustering, \textit{IEEE Transactions on Image Processing} 33 (2024) 4501--4515.
+
+\bibitem{lin2023multi}
+R. Lin, S. Du, S. Wang, W. Guo, Multi-view clustering via optimal transport algorithm, \textit{Knowledge-Based Systems} 279 (2023) 110954.
+
+\bibitem{shi2022deep}
+K. Shi, Y. Lu, P. Hao, Deep clustering network with angular metric learning in navigation, in: \textit{International Conference on Guidance, Navigation and Control}, Springer, 2022, pp. 2830--2839.
+
+\bibitem{shi2023deep}
+K. Shi, Y. Lu, P. Hao, Deep clustering network with angular metric learning in navigation, in: \textit{International Conference on Guidance, Navigation and Control}, Springer, 2023, pp. 2830--2839.
+
+\bibitem{shen2023analysis}
+Z. Shen, S. Li, Y. Liu, X. Tang, Analysis of driving behavior in unprotected left turns for autonomous vehicles using ensemble deep clustering, \textit{IEEE Transactions on Intelligent Vehicles} (2023).
+
+\bibitem{kim2022profeat}
+J. Kim, S. Im, S. Cho, ProFeat: Unsupervised image clustering via progressive feature refinement, \textit{Pattern Recognition Letters} 164 (2022) 166--172.
+
+\bibitem{xia2023incomplete}
+D. Xia, Y. Yang, S. Yang, T. Li, Incomplete multi-view clustering via kernelized graph learning, \textit{Information Sciences} 625 (2023) 1--19.
+
+\bibitem{wan2023fast}
+X. Wan, B. Xiao, X. Liu, J. Liu, W. Liang, E. Zhu, Fast continual multi-view clustering with incomplete views, \textit{arXiv preprint arXiv:2306.02389} (2023).
+
+\bibitem{wan2024fast}
+X. Wan, B. Xiao, X. Liu, J. Liu, W. Liang, E. Zhu, Fast continual multi-view clustering with incomplete views, \textit{IEEE Transactions on Image Processing} 33 (2024) 2995--3008.
+
+\bibitem{liang2022incomplete}
+N. Liang, Z. Yang, Z. Li, W. Han, Incomplete multi-view clustering with incomplete graph-regularized orthogonal non-negative matrix factorization, \textit{Applied Intelligence} 52 (13) (2022) 14607--14623.
+
+\bibitem{xing2025incomplete}
+L. Xing, X. Zheng, Y. Lu, B. Chen, Incomplete multi-view subspace clustering based on robust matrix completion, \textit{Neurocomputing} 621 (2025) 129240.
+
+\bibitem{guo2024robust}
+R. Guo, M. Yang, Y. Lin, X. Peng, P. Hu, Robust contrastive multi-view clustering against dual noisy correspondence, \textit{Advances in Neural Information Processing Systems (NeurIPS)} 37 (2024) 121401--121421.
+
+\bibitem{sun2024robust}
+Y. Sun, Y. Qin, Y. Li, D. Peng, X. Peng, P. Hu, Robust multi-view clustering with noisy correspondence, \textit{IEEE Transactions on Knowledge and Data Engineering} 36 (12) (2024) 9150--9162.
+
+\bibitem{lin2018loam}
+J. Zhang, S. Singh, LOAM: Lidar odometry and mapping in real-time, in: \textit{Robotics: Science and Systems}, Vol. 2, 2014.
+
+\bibitem{qin2018vins}
+T. Qin, P. Li, S. Shen, VINS-Mono: A robust and versatile monocular visual-inertial state estimator, \textit{IEEE Transactions on Robotics} 34 (4) (2018) 1004--1020.
+
+\bibitem{wang2023deep}
+L. Wang, et al., Deep multi-sensor fusion for legged robot odometry, in: \textit{IEEE International Conference on Robotics and Automation (ICRA)}, 2023.
+
+\bibitem{jonschkowski2018differentiable}
+R. Jonschkowski, D. Rastogi, O. Brock, Differentiable particle filters: End-to-end learning with algorithmic priors, in: \textit{Robotics: Science and Systems}, 2018.
+
+\bibitem{karkus2018particle}
+P. Karkus, D. Hsu, W. S. Lee, Particle filter networks with application to visual localization, in: \textit{Conference on Robot Learning (CoRL)}, 2018.
+
+\bibitem{cadena2016past}
+C. Cadena, L. Carlone, H. Carrillo, Y. Latif, D. Scaramuzza, J. Neira, I. Reid, J. J. Leonard, Past, present, and future of simultaneous localization and mapping: Toward the robust-perception age, \textit{IEEE Transactions on Robotics} 32 (6) (2016) 1309--1332.
+
+\bibitem{quigley2009ros}
+M. Quigley, K. Conley, B. Gerkey, J. Faust, T. Foote, J. Leibs, R. Wheeler, A. Y. Ng, ROS: An open-source Robot Operating System, in: \textit{ICRA Workshop on Open Source Software}, Vol. 3, 2009, p. 5.
+
+\bibitem{koenig2004design}
+N. Koenig, A. Howard, Design and use paradigms for Gazebo, an open-source multi-robot simulator, in: \textit{IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS)}, Vol. 3, 2004, pp. 2149--2154.
+
+\bibitem{silberman2012indoor}
+N. Silberman, D. Hoiem, P. Kohli, R. Fergus, Indoor segmentation and support inference from RGBD images, in: \textit{European Conference on Computer Vision (ECCV)}, Springer, 2012, pp. 746--760.
+
+\bibitem{patel2025tartanground}
+M. Patel, F. Yang, Y. Qiu, C. Cadena, S. Scherer, M. Hutter, W. Wang, TartanGround: A large-scale dataset for ground robot perception and navigation, in: \textit{2025 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS)}, IEEE, 2025, pp. 20524--20531.
+
+\bibitem{behley2019semantickitti}
+J. Behley, M. Garbade, A. Milioto, J. Quenzel, S. Behnke, C. Stachniss, J. Gall, SemanticKITTI: A dataset for semantic scene understanding of LiDAR sequences, in: \textit{Proceedings of the IEEE/CVF International Conference on Computer Vision (ICCV)}, 2019, pp. 9297--9307.
+
+\bibitem{tuna2026grandtour}
+T. Tuna, J. Frey, L. F. T. Fu, K. Patterson, T. Xu, M. Fallon, C. Cadena, M. Hutter, GrandTour: A legged robotics dataset in the wild for multi-modal perception and state estimation, \textit{The International Journal of Robotics Research} (2026) 02783649261480737.
+
+\end{thebibliography}
+}}}
+
+\clearpage
+\section*{Extended Data Figures}
+\setcounter{figure}{0}
+\renewcommand{\thefigure}{S\arabic{figure}}
+
+\begin{figure}[htbp]
+    \centering
+    \IfFileExists{FigureS1_modality_weights.pdf}{%
+        \includegraphics[width=0.96\textwidth]{FigureS1_modality_weights.pdf}%
+    }{\IfFileExists{ge1031/FigureS1_modality_weights.pdf}{%
+        \includegraphics[width=0.96\textwidth]{ge1031/FigureS1_modality_weights.pdf}%
+    }{\IfFileExists{figs/ge1031/FigureS1_modality_weights.pdf}{%
+        \includegraphics[width=0.96\textwidth]{figs/ge1031/FigureS1_modality_weights.pdf}%
+    }{%
+        \framebox{\parbox{0.96\textwidth}{%
+            \vspace{4pt}\centering
+            \textbf{Vector Figure Reference: \texttt{FigureS1\_modality\_weights.pdf}} \\[3pt]
+            \scriptsize
+            Panels: (a) Per-sample softmax weights $w_v, w_d$ during the $6$--$20\,\text{s}$ window across Baseline, Overexposure ($w_d = 0.826$), Motion Blur ($w_d = 0.662$), and Depth Dropout ($w_v = 0.724$); (b) Corresponding health qualities $q_v, q_d$.
+            \vspace{4pt}
+        }}%
+    }}}
+    \caption{Modality weights and health under four corruption modes in the Go1 street scene. (a) Per-sample softmax weights $w_v$ and $w_d$ during the $6$--$20\,\text{s}$ window. (b) Visual and depth health qualities $q_v$ and $q_d$. Corruption lowers the health of the affected modality and shifts the softmax weight toward the clean view (Table~\ref{tab:weights}).}
+    \label{fig:modality_weights}
+\end{figure}
+
+\begin{figure}[htbp]
+    \centering
+    \IfFileExists{FigureS2_hyperparameter_sensitivity.pdf}{%
+        \includegraphics[width=0.96\textwidth]{FigureS2_hyperparameter_sensitivity.pdf}%
+    }{\IfFileExists{ge1031/FigureS2_hyperparameter_sensitivity.pdf}{%
+        \includegraphics[width=0.96\textwidth]{ge1031/FigureS2_hyperparameter_sensitivity.pdf}%
+    }{\IfFileExists{figs/ge1031/FigureS2_hyperparameter_sensitivity.pdf}{%
+        \includegraphics[width=0.96\textwidth]{figs/ge1031/FigureS2_hyperparameter_sensitivity.pdf}%
+    }{%
+        \framebox{\parbox{0.96\textwidth}{%
+            \vspace{4pt}\centering
+            \textbf{Vector Figure Reference: \texttt{FigureS2\_hyperparameter\_sensitivity.pdf}} \\[3pt]
+            \scriptsize
+            Panels: (a) Softmax gating temperature sensitivity $\lambda \in \{0, 1, 2, 4, 8\}$ on the NYU subset at severe degradation level 2.0 (optimal at $\lambda=4$, ACC $=60.0\%$); (b) Over-clustering ratio $r_{\text{oc}} \in \{1, 2, 4, 8\}$ under Go1 Blocked 5-fold CV (optimal at $r_{\text{oc}}=8$, ACC $=77.8\%$).
+            \vspace{4pt}
+        }}%
+    }}}
+    \caption{Hyperparameter sensitivity. (a) Softmax temperature $\lambda$ on the NYU subset at severe degradation level 2.0. (b) Over-clustering ratio $r_{\text{oc}}=K/C$ on the 351-sample Go1 set under blocked 5-fold CV. The selected settings ($\lambda=4$, $r_{\text{oc}}=8$) are shaded.}
+    \label{fig:hyperparameter_sensitivity}
+\end{figure}
+
+\begin{figure}[htbp]
+    \centering
+    \IfFileExists{FigureS3_blocked_cv_confusion.pdf}{%
+        \includegraphics[width=0.96\textwidth]{FigureS3_blocked_cv_confusion.pdf}%
+    }{\IfFileExists{ge1031/FigureS3_blocked_cv_confusion.pdf}{%
+        \includegraphics[width=0.96\textwidth]{ge1031/FigureS3_blocked_cv_confusion.pdf}%
+    }{\IfFileExists{figs/ge1031/FigureS3_blocked_cv_confusion.pdf}{%
+        \includegraphics[width=0.96\textwidth]{figs/ge1031/FigureS3_blocked_cv_confusion.pdf}%
+    }{%
+        \framebox{\parbox{0.96\textwidth}{%
+            \vspace{4pt}\centering
+            \textbf{Vector Figure Reference: \texttt{FigureS3\_blocked\_cv\_confusion.pdf}} \\[3pt]
+            \scriptsize
+            Panels: (a) RA-AHPFF cluster readout Blocked 5-fold CV confusion matrix $[[26,9,5,19],[17,132,3,0],[13,5,67,0],[7,0,0,48]]$ ($77.8\%$ ACC); (b) Supervised ExtraTrees upper bound ($80.9\%$ ACC).
+            \vspace{4pt}
+        }}%
+    }}}
+    \caption{Temporally blocked 5-fold confusion matrices on the 351-sample Go1 calibration set. (a) Reliability-weighted cluster readout. (b) Supervised ExtraTrees upper bound. Cell values are counts; colour is the row-normalised fraction; row labels report per-class recall.}
+    \label{fig:blocked_cv_confusion}
+\end{figure}
+
+\begin{figure}[htbp]
+    \centering
+    \IfFileExists{FigureS4_covariance_gating.pdf}{%
+        \includegraphics[width=0.96\textwidth]{FigureS4_covariance_gating.pdf}%
+    }{\IfFileExists{ge1031/FigureS4_covariance_gating.pdf}{%
+        \includegraphics[width=0.96\textwidth]{ge1031/FigureS4_covariance_gating.pdf}%
+    }{\IfFileExists{figs/ge1031/FigureS4_covariance_gating.pdf}{%
+        \includegraphics[width=0.96\textwidth]{figs/ge1031/FigureS4_covariance_gating.pdf}%
+    }{%
+        \framebox{\parbox{0.96\textwidth}{%
+            \vspace{4pt}\centering
+            \textbf{Vector Figure Reference: \texttt{FigureS4\_covariance\_gating.pdf}} \\[3pt]
+            \scriptsize
+            Panels: (a) Directional 6-DoF process-noise standard deviations across Flat, Stairs, Obstacle, and Tactile modes (Table~\ref{tab:process_noise}); (b) Flat-ground covariance trace $\operatorname{Tr}(\mathbf{Q})$ accounting ($1.20\times 10^{-5}$ for SAPF-Pred vs.\ $46.20\times 10^{-5}$ for LPF, achieving a $97.4\%$ reduction).
+            \vspace{4pt}
+        }}%
+    }}}
+    \caption{Directional process covariance and flat-ground uncertainty. (a) Class-specific process-noise standard deviations from Table~\ref{tab:process_noise}. (b) Flat-ground $\operatorname{Tr}(\mathbf{Q})$ for SPF, SAPF-Pred, SAPF-Shuffled, and LPF. The selective gate matches LPF stair tracking while avoiding its $38.5\times$ flat-ground variance inflation, a $97.4\%$ reduction (Proposition~\ref{prop:entropy}).}
+    \label{fig:covariance_gating}
+\end{figure}
+
+\end{document}

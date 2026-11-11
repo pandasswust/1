@@ -1,0 +1,8 @@
+method,clean_acc,clean_acc_sd,severe_acc,severe_acc_sd,clean_nmi,clean_nmi_sd,severe_nmi,severe_nmi_sd,clean_ari_pct,severe_ari_pct,severe_silhouette
+Vision only,46.2,3.1,42.5,4.0,8.0,2.0,5.5,4.0,3.3000000000000003,-0.5,0.432
+Depth only,65.0,0.7,59.6,3.5,33.2,1.1,27.1,4.5,22.8,19.400000000000002,0.345
+Fixed concat,56.6,2.0,54.4,5.2,24.7,4.1,19.1,5.0,17.5,12.1,0.246
+PCA average,68.5,3.4,49.2,6.0,35.8,3.5,11.2,6.8,28.999999999999996,6.0,0.104
+Uniform weighted,56.7,1.7,54.2,5.3,24.8,3.6,18.7,5.5,17.7,12.1,0.248
+Shuffled reliability,66.7,3.6,56.2,3.3,33.9,3.3,21.2,4.2,26.5,14.799999999999999,0.215
+RA-AHPFF (Ours),71.1,2.1,60.0,4.7,38.3,2.4,23.2,5.1,31.0,19.5,0.208

@@ -1,0 +1,9 @@
+operation,mean_ms,std_ms,repeats,calls_per_repeat
+Health scores (per frame),0.248229,0.001690,5,200
+Softmax reliability weights (per frame),0.014275,0.001079,5,500
+Nearest-centroid readout K=3 (per frame),0.039545,0.002558,5,200
+Nearest-centroid readout K=32 (per frame),0.045000,0.003949,5,200
+ExtraTrees inference (per frame),15.078006,0.328236,5,200
+"RW-MVK calibration K=3, n_init=10 (51 frames)",27.762721,0.579910,3,1
+"RW-MVK calibration K=32, n_init=10 (351 frames)",235.924473,36.040989,3,1
+"ExtraTrees training, 300 trees (351 frames)",394.155822,9.674311,2,1
